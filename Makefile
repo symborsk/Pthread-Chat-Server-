@@ -1,3 +1,4 @@
+all: client server
 server:server.o
 	gcc -o server server.o
 server.o:server.c
