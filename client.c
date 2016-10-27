@@ -8,9 +8,11 @@
 #include <strings.h>
 #include <string.h>
 #include <errno.h>
+#include <pthread.h>
 
 #define	 MY_PORT  2222
 #define  MaxLength 20
+#define  BuffSize 200
 
 /* ---------------------------------------------------------------------
  This is a sample client program for the number server. The client and
@@ -36,6 +38,7 @@ uint16_t lengthOfUsername(unsigned char userName[MaxLength]){
 // 	send(socket, &tmp, sizeof(mySize), 0);
 // 	send(socket , &username, sizeof(username), 0);
 // }
+void * recieveMessage(void* socket);
 
 int main()
 {
@@ -45,7 +48,9 @@ int main()
 
 	struct	hostent		*host;
 
-	host = gethostbyname ("129.128.41.71");
+	pthread_t thread;
+
+	host = gethostbyname ("129.128.41.73");
 
 	if (host == NULL) {
 		perror ("Client: cannot get host description");
@@ -69,7 +74,8 @@ int main()
 		exit (1);
 	}
 
-	read (s, &first_confirmation, sizeof (first_confirmation));
+	int abc = read (s, &first_confirmation, sizeof (first_confirmation));
+	printf("successfuly read: %d\n", abc);
 	read (s, &second_confirmation, sizeof(second_confirmation));
 	first_confirmation = ntohl (first_confirmation);
 	second_confirmation = ntohl (second_confirmation);
@@ -79,6 +85,10 @@ int main()
 		exit(1);
 	}
 	printf("Connection Complete\n");
+	int ret = pthread_create(&thread, NULL, recieveMessage, (void *)s);
+	if(ret){
+		printf("Error Creating Thread %d", ret);
+	}
 
 	
 	unsigned char username[MaxLength];
@@ -88,12 +98,31 @@ int main()
 	uint16_t mySize = sizeUser;
 	uint16_t tmp = htons((uint16_t)mySize);
 	
-	send(s, &tmp, sizeof(mySize), 0);
-	send(s , &username, sizeof(username), 0);
+	int what = send(s, &tmp, sizeof(mySize), 0);
+	send(s, &username, sizeof(username), 0);
+	close(s);
+	pthread_exit(NULL);
+}
 
+void * recieveMessage(void* socket){
 	
-	printf("Error: %s\n",strerror(errno));
-	close (s);
+	int newSocket = (int)socket;
+	uint16_t sSize= 0;
+	while(1){
+		printf("RUNNING DA THREAD\n");
+		recv(newSocket, &sSize, sizeof(sSize), 0);
+		printf("Da Thread says: %d\n", sSize);
+		if(sSize == 65535){
+			close(newSocket);
+			exit(1);
+			break;
+		}
+
+		unsigned char buff[sSize];
+		recv(newSocket, &buff, sizeof(buff), 0);
+		break;
+
+	}
 }
 
 
