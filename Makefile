@@ -5,9 +5,9 @@ server.o:server.c
 	gcc -c server.c
 
 client: client.o
-	gcc -o client client.o
+	gcc -pthread -o client client.o
 client.o:client.c
-	gcc -c client.c
+	gcc -pthread -c client.c
 
 clean:
 	rm -f client.o
