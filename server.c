@@ -22,7 +22,7 @@ typedef struct users{
 	pid_t pid;
 } user;
 
-int number 0;
+int number = 0;
 int numberofclients=0;
 
 int main()
