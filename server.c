@@ -22,18 +22,21 @@ typedef struct users{
 	pid_t pid;
 } user;
 
+int number 0;
+int numberofclients=0;
+
 int main()
 {	user listofuser[MAXSIZE];
 	fd_set fd_active;
 	fd_set read_fd_set;
 	struct timeval timer;
-	timer.tv_sec=5;
+	timer.tv_sec=10;
 	timer.tv_usec=2000;
 	
 		
 
 	int	sock, snew, fromlength, number, outnum;
-	uint16_t inlength,usernameLength;
+	uint16_t inlength,usernameLength, in_uint16_t;
 	uint32_t inusername;
 	struct	sockaddr_in	master, from;
 	
@@ -64,7 +67,6 @@ int main()
 		user currentuser=listofuser[0];
 
 		read_fd_set=fd_active;
-		printf("got past select\n");
 	
 		if(select(FD_SETSIZE,&read_fd_set,NULL,NULL,NULL)<0){
 			
@@ -72,9 +74,12 @@ int main()
 			exit(1);
 		}
 		
-		// pid_t forkstatus=fork();
-		// if(forkstatus==0)
-		// {
+		numberofclients++;
+		printf("forking\n");
+		pid_t forkstatus=fork();
+
+		if(forkstatus==0)
+		{
 		int i=0;
 		for(i;i<FD_SETSIZE;i++){			
 			if(FD_ISSET(i, &read_fd_set)){
@@ -105,7 +110,7 @@ int main()
 					// myint=ntohl(tmp);
 					// printf("%d",myint);
 
-					inlength=-1;
+					in_uint16_t=-1;
 					int a = recv(snew,&inlength,sizeof(inlength),0);
 					printf(" a is %d\n", a);
 
@@ -144,11 +149,11 @@ int main()
 				FD_CLR(i,&fd_active);
 			}
 		}
-		// }
-		// else
-		// {
+		}
+		else
+		{
 
-		// }
+		}
 
 	}	
 	
