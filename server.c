@@ -20,6 +20,7 @@
 void handShake(int snew);
 uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]);
 void sendCurrentUserNames(int snew);
+void getUsername(int snew);
 
 typedef struct users{
 	int length;
@@ -29,7 +30,7 @@ typedef struct users{
 
 int number = 0;
 int numberofclients=0;
-user listofuser[MAXSIZE];
+user listofusers[MAXSIZE];
 int main(){	
 	
 	fd_set fd_active;
@@ -69,38 +70,38 @@ int main(){
 
 		read_fd_set=fd_active;
 
-		printf("hitting select\n");
 		if(select(FD_SETSIZE,&read_fd_set,NULL,NULL,NULL)<0){
 			
-			printf("forkstatus %d", forkstatus);
+			
 			perror("select()");
 			exit(1);
 		}
 		
-		numberofclients++;
+		
 
 		//Only want to frok if we are at the parent
-		printf("%d\n", forkstatus);
+
 
 		int i=0;
 		for(i;i<FD_SETSIZE;i++){			
 			if(FD_ISSET(i, &read_fd_set)){
 				if(i == sock){
 					fromlength = sizeof (from);
-					printf("this is snew: %d\n",snew);
+					
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
 
 					printf("forking\n");
+					numberofclients++;
 					forkstatus = fork();
-
+					
 
 					//Child process
 					if(forkstatus == 0){
-						user currentuser=listofuser[numberofclients];
-						numberofclients++;
+						//user currentuser=listofusers[numberofclients];
 						
+
 						close(sock);
-						printf("Socket Accepted");
+						
 						
 						if(setsockopt(snew,SOL_SOCKET,SO_RCVTIMEO, (char *)&timer,sizeof(timer))<0){
 							perror("setting timeout failed");
@@ -112,39 +113,40 @@ int main(){
 						}
 						
 						handShake(snew);
+						getUsername(snew);
 						sendCurrentUserNames(snew);
 						FD_SET(snew, &fd_active);
 
-						in_uint16_t=-1;
-						int a = recv(snew,&inlength,sizeof(inlength),0);
-						printf(" a is %d\n", a);
-
-						if(a  ==  -1){
-							
-							printf("closing\n");
-							uint16_t exit_val = -1;
-							//uint16_t outexit=htons(exit_val);
-							send(snew,&exit_val,sizeof(exit_val),0); 
-							//shutdown(snew,SHUT_RDWR);	
-							close (snew);	
-						}
-						else{
-							usernameLength=ntohs(inlength);
-							printf("%d\n",usernameLength);
-
-							unsigned char usernamestr [usernameLength];
-							recv(snew,&usernamestr,sizeof(usernamestr),0);
-
-							//printf("This: %s  is the username",usernamestr);
-							currentuser.length=usernameLength;
-							strcpy(currentuser.usernamestr,usernamestr);
-							currentuser.pid=0;
-
-
-							close(snew);
-							exit(1);
-						}
+						// in_uint16_t=-1;
+						// int a = recv(snew,&inlength,sizeof(inlength),0);
 						
+
+						// if(a  ==  -1){
+							
+						// 	uint16_t exit_val = -1;
+						// 	//uint16_t outexit=htons(exit_val);
+						// 	send(snew,&exit_val,sizeof(exit_val),0); 
+						// 	//shutdown(snew,SHUT_RDWR);	
+						// 	close (snew);	
+						// }
+						// else{
+						// 	// usernameLength=ntohs(inlength);
+						
+
+						// 	// unsigned char usernamestr [usernameLength];
+						// 	// recv(snew,&usernamestr,sizeof(usernamestr),0);
+							
+							
+						// 	// currentuser.length=usernameLength;
+						// 	// strcpy(currentuser.usernamestr,usernamestr);
+						// 	// currentuser.pid=0;
+
+
+						// 	close(snew);
+						// 	exit(1);
+						// }
+						close(snew);
+						exit(1);
 					}
 					//Parent process
 					else{
@@ -166,36 +168,26 @@ int main(){
 void handShake(int snew){
  	uint16_t outnum=0;
 
- 	unsigned char outarray [4];
- 	memset(outarray,'\0',sizeof(unsigned char)*4);
-
-	uint16_t holdingNumber=0xcf;
-	outnum = htons (holdingNumber);
-	memcpy(&outarray[0], (void*) &outnum, sizeof(outnum));
-
-	holdingNumber=0xa7;
-	outnum = htons (holdingNumber);
-	memcpy(&outarray[2], (void*) &outnum, sizeof(outnum));
-	
-	printf("%u\n",outarray[0]);
-	printf("%u\n",outarray[1]);
-	printf("%u\n",outarray[2]);
-	printf("%u\n",outarray[3]);
+ 	unsigned char outarray [2];
+	uint16_t holdingNumber = 0xcf;
+	outarray[0] = (unsigned char) (holdingNumber);
+	holdingNumber = 0xa7;
+	outarray[1] = (unsigned char) (holdingNumber);
 	send (snew, &outarray, sizeof (outarray),0);
-	perror("handShake failed");
 
-	
+	unsigned char numberOfUsers = (unsigned char)numberofclients-1; 
+	printf("Number of users  %d\n",numberofclients );
+	send (snew,&numberOfUsers, sizeof(numberOfUsers),0);	
 }	
 
 void sendCurrentUserNames(int snew){
 	int i;
 
-	for(i=0;i<numberofclients;i++){
-		user currentuser= listofuser[i];
+	for(i=0;i<numberofclients-1;i++){
+		user currentuser= listofusers[i];
 		uint16_t length = htons( currentuser.length);
 		unsigned char username [currentuser.length];
 		
-		//send(snew,)
 
 	}
 
@@ -212,3 +204,29 @@ uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
 	return i + 1;
 }
 
+void getUsername(snew){
+	unsigned char buff [MAXSIZE];
+	
+	recv(snew, &buff, sizeof(buff), 0);
+	printf("buff 0th:%u\n", buff[0] );
+	unsigned char temp = buff[0];
+	uint16_t sizeOfUsername =  (uint16_t)temp;
+	printf("Length is: %d\n",sizeOfUsername );
+
+	unsigned char userName[sizeOfUsername-1];
+	memcpy(userName,(void *)&buff[1],sizeof(userName));
+
+	int i;
+	for(i=0;i<sizeOfUsername-1;i++){
+		printf("%c\n",userName[i] );
+	}
+	printf("username is: %s\n",userName );
+
+	user currentuser = listofusers[numberofclients-1];
+
+	// currentuser.length=usernameLength;
+	// strcpy(currentuser.usernamestr,userName);
+	// currentuser.pid=0;
+
+
+}
