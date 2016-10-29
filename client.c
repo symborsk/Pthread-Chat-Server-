@@ -11,7 +11,8 @@
 #include <pthread.h>
 
 #define	 MY_PORT  2222
-#define  MaxLength 20
+#define  MaxUsernameLength 20
+#define  BufferSize 256
 
 /* ---------------------------------------------------------------------
  This is a sample client program for the number server. The client and
@@ -20,7 +21,8 @@
 
 void * recieveMessage(void* socket);
 void handShake(int s);
-uint16_t lengthOfUsername(unsigned char userName[MaxLength]);
+uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]);
+void sendUsername(int s);
 
 int main()
 {
@@ -39,7 +41,7 @@ int main()
 		exit (1);
 	}
 
-	s = socket (AF_INET, SOCK_STREAM, 0);
+	s = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (s < 0) {
 		perror ("Client: cannot open socket");
@@ -55,6 +57,7 @@ int main()
 		perror ("Client: cannot connect to server");
 		exit (1);
 	}
+	
 	handShake(s);
 
 	//After the confirmation start a seperate thread for listening
@@ -63,16 +66,16 @@ int main()
 		printf("Error Creating Thread %d", ret);
 	}
 
+	sendUsername(s);	
+	// unsigned char username[MaxUsernameLength];
+	// printf("Enter username: ");
+	// scanf("%s", username);
+	// uint16_t sizeUser = lengthOfUsername(username);
+	// uint16_t mySize = sizeUser;
+	// uint16_t tmp = htons((uint16_t)mySize);
 	
-	unsigned char username[MaxLength];
-	printf("Enter username: ");
-	scanf("%s", username);
-	uint16_t sizeUser = lengthOfUsername(username);
-	uint16_t mySize = sizeUser;
-	uint16_t tmp = htons((uint16_t)mySize);
-	
-	int what = send(s, &tmp, sizeof(mySize), 0);
-	send(s, &username, sizeof(username), 0);
+	// int what = send(s, &tmp, sizeof(mySize), 0);
+	// send(s, &username, sizeof(username), 0);
 	close(s);
 	pthread_exit(NULL);
 }
@@ -104,16 +107,16 @@ void * recieveMessage(void* socket){
 }
 
 void handShake(int s){
-	unsigned char confirmation[4];
-	read (s, &confirmation, sizeof (confirmation));
+	unsigned char confirmation[2];
+	recv(s, &confirmation, sizeof (confirmation), 0);
 	
-	uint16_t first_confirmation_encoded;
-	uint16_t second_confirmation_encoded;
-	memcpy(&first_confirmation_encoded,  (void *) &confirmation[0], sizeof(first_confirmation_encoded));
-	memcpy(&second_confirmation_encoded, (void *) &confirmation[2], sizeof(second_confirmation_encoded));
+	uint16_t first_confirmation = (uint16_t)confirmation[0];
+	uint16_t second_confirmation = (uint16_t)confirmation[1];
 
-	uint16_t first_confirmation =  ntohs(first_confirmation_encoded);
-	uint16_t second_confirmation = ntohs(second_confirmation_encoded);
+	unsigned char numberOfUsers;
+	recv(s, &numberOfUsers, sizeof(numberOfUsers), 0);
+	uint16_t intUsers  = (uint16_t)numberOfUsers;
+	readUsernames(intUsers);
 
 	if( first_confirmation != 0xCF || second_confirmation != 0xA7){
 		perror ("Client: Did not recieve correct server authentication");
@@ -123,9 +126,17 @@ void handShake(int s){
 	printf("Connection Complete\n");
 }
 
-uint16_t lengthOfUsername(unsigned char userName[MaxLength]){
+void readUsernames(int numberOfUsers){
+	int i;
+	for(int i = 0; i < numberOfUsers ; i++ ){
+		unsigned char buff[BufferSize];
+		
+	}
+}
+
+uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]){
 	uint16_t i;
-	for(i = 0; i < MaxLength; i++){
+	for(i = 0; i < MaxUsernameLength; i++){
 
 		
 		if(userName[i] == '\0')
@@ -133,6 +144,24 @@ uint16_t lengthOfUsername(unsigned char userName[MaxLength]){
 	}
 
 	return i + 1;
+}
+
+void sendUsername(int s){
+
+	unsigned char buff[MaxUsernameLength];
+	printf("Enter username: \n");
+	scanf("%s", buff);
+	unsigned char username[MaxUsernameLength];
+	
+	//Put in the length at the start
+	uint16_t sizeUser = lengthOfUsername(buff);
+	username[0] = (unsigned char) sizeUser;
+	
+	//Put in the username chars
+	memcpy(&username[1], (void *)buff, sizeUser-1);
+	 
+	printf("\nlength of username %u", username[0]);
+	send(s, &username, sizeof(username), 0);
 }
 
 
