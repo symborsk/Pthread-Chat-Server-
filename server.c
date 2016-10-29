@@ -99,11 +99,11 @@ int main(){
 					if(forkstatus == 0){
 						//user currentuser=listofusers[numberofclients];
 						
-
+						printf("im a child\n");
 						close(sock);
 						
 						
-						if(setsockopt(snew,SOL_SOCKET,SO_RCVTIMEO, (char *)&timer,sizeof(timer))<0){
+						if(setsockopt(snew,SOL_SOCKET,SO_RCVTIMEO, (char *)&timer, sizeof(timer))<0){
 							perror("setting timeout failed");
 						}
 						if (snew < 0) 
@@ -113,8 +113,9 @@ int main(){
 						}
 						
 						handShake(snew);
-						getUsername(snew);
+						printf("going into function\n");
 						sendCurrentUserNames(snew);
+						getUsername(snew);
 						FD_SET(snew, &fd_active);
 
 						// in_uint16_t=-1;
@@ -197,16 +198,17 @@ void sendCurrentUserNames(int snew){
 	 
 	// printf("\nlength of username %u", username[0]);
 	// send(s, &username, sizeof(username), 0);
-
+	printf("hey\n");
 	for(i=0;i<numberofclients-1;i++){
 		user currentuser= listofusers[i];
 		unsigned char length = (unsigned char) currentuser.length;
 		unsigned char username [currentuser.length];
 		username[0] = length;
+		printf("this is the usernamestr %s\n",currentuser.usernamestr );
+		printf("this is the username length%d\n",currentuser.length );
+		memcpy(&username[1], (void *)currentuser.usernamestr, currentuser.length-1);
 		
-		memcpy(&userName[1], (void *)currentuser.username, currentuser.length-1);
-		
-		send(snew, username, sizeof(username));
+		send(snew, username, sizeof(username),0);
 
 
 	}
@@ -228,25 +230,22 @@ void getUsername(snew){
 	unsigned char buff [MAXSIZE];
 	
 	recv(snew, &buff, sizeof(buff), 0);
-	printf("buff 0th:%u\n", buff[0] );
+	
 	unsigned char temp = buff[0];
 	uint16_t sizeOfUsername =  (uint16_t)temp;
-	printf("Length is: %d\n",sizeOfUsername );
+	
 
 	unsigned char userName[sizeOfUsername-1];
 	memcpy(userName,(void *)&buff[1],sizeof(userName));
 
 	int i;
-	for(i=0;i<sizeOfUsername-1;i++){
-		printf("%c\n",userName[i] );
-	}
-	printf("username is: %s\n",userName );
-
+	
 	user currentuser = listofusers[numberofclients-1];
 
-	// currentuser.length=usernameLength;
-	// strcpy(currentuser.usernamestr,userName);
-	// currentuser.pid=0;
+	currentuser.length=sizeOfUsername;
+	strcpy(currentuser.usernamestr,userName);
+	currentuser.pid=0;
+
 
 
 }
