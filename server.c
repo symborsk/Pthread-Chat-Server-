@@ -229,8 +229,13 @@ uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
 void getUsername(snew){
 	unsigned char buff [MAXSIZE];
 	
-	recv(snew, &buff, sizeof(buff), 0);
-	
+	int receivebytes = recv(snew, &buff, sizeof(buff), 0);
+	if(receivebytes==-1){
+		close(snew)
+		printf("closing socket\n");
+		exit(1);
+	}
+
 	unsigned char temp = buff[0];
 	uint16_t sizeOfUsername =  (uint16_t)temp;
 	
