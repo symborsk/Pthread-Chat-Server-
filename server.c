@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <sys/mman.h>
 #define	MY_PORT	2222
 #define MAXSIZE 20
 
@@ -30,7 +31,9 @@ typedef struct users{
 
 int number = 0;
 int numberofclients=0;
-user listofusers[MAXSIZE];
+int fd;
+user* sharedMem;
+
 int main(){	
 	
 	fd_set fd_active;
@@ -38,7 +41,14 @@ int main(){
 	struct timeval timer;
 	timer.tv_sec=10;
 	timer.tv_usec=2000;
+
+	sharedMem = mmap(NULL, sizeof(user)*MAXSIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	
+	if(sharedMem == MAP_FAILED){
+		printf("Error: %s\n", strerror(errno));
+		exit(1);
+	}
+
 	int	sock, snew, fromlength, number, outnum;
 	uint16_t inlength,usernameLength, in_uint16_t;
 	uint32_t inusername;
@@ -114,8 +124,7 @@ int main(){
 						
 						handShake(snew);
 						printf("going into function\n");
-						sendCurrentUserNames(snew);
-						getUsername(snew);
+						
 						FD_SET(snew, &fd_active);
 
 						// in_uint16_t=-1;
@@ -178,37 +187,35 @@ void handShake(int snew){
 
 	unsigned char numberOfUsers = (unsigned char)numberofclients-1; 
 	printf("Number of users  %d\n",numberofclients );
-	send (snew,&numberOfUsers, sizeof(numberOfUsers),0);	
+	send (snew,&numberOfUsers, sizeof(numberOfUsers),0);
+	sendCurrentUserNames(snew);
+	getUsername(snew);	
 }	
 
 void sendCurrentUserNames(int snew){
 	int i;
-
-	// unsigned char buff[MaxUsernameLength];
-	// printf("Enter username: \n");
-	// scanf("%s", buff);
-	// unsigned char username[MaxUsernameLength];
-	
-	// //Put in the length at the start
-	// uint16_t sizeUser = lengthOfUsername(buff);
-	// username[0] = (unsigned char) sizeUser;
-	
-	// //Put in the username chars
-	// memcpy(&username[1], (void *)buff, sizeUser-1);
-	 
-	// printf("\nlength of username %u", username[0]);
-	// send(s, &username, sizeof(username), 0);
-	printf("hey\n");
+	printf("numberofclients %d\n",numberofclients);
 	for(i=0;i<numberofclients-1;i++){
-		user currentuser= listofusers[i];
-		unsigned char length = (unsigned char) currentuser.length;
-		unsigned char username [currentuser.length];
-		username[0] = length;
-		printf("this is the usernamestr %s\n",currentuser.usernamestr );
-		printf("this is the username length%d\n",currentuser.length );
-		memcpy(&username[1], (void *)currentuser.usernamestr, currentuser.length-1);
+		user* currentuser= &sharedMem[i];
 		
-		send(snew, username, sizeof(username),0);
+		printf("this is the usernamestr %s\n",currentuser->usernamestr );
+		printf("this is the username length%d\n",currentuser->length );
+
+		
+		unsigned char length = (unsigned char) currentuser->length;
+		unsigned char username [currentuser->length];
+		username[0] = length;
+		
+		// printf("this is the usernamestr %s\n",currentuser.usernamestr );
+		// printf("this is the username length%d\n",currentuser.length );
+		memcpy(&username[1], (void *)&currentuser->usernamestr, currentuser->length-1);
+		
+		int sendval=send(snew, &username, sizeof(username),0);
+		printf("%s\n",username );
+
+		if(sendval<=0){
+			printf("send failed\n");
+		}
 
 
 	}
@@ -230,8 +237,8 @@ void getUsername(snew){
 	unsigned char buff [MAXSIZE];
 	
 	int receivebytes = recv(snew, &buff, sizeof(buff), 0);
-	if(receivebytes==-1){
-		close(snew)
+	if(receivebytes<=0){
+		close(snew);
 		printf("closing socket\n");
 		exit(1);
 	}
@@ -244,12 +251,18 @@ void getUsername(snew){
 	memcpy(userName,(void *)&buff[1],sizeof(userName));
 
 	int i;
-	
-	user currentuser = listofusers[numberofclients-1];
+	printf("Saving new user\n");
+	printf("numberofclients = %d\n",numberofclients );
+	printf("Name: %s\n",userName );
 
-	currentuser.length=sizeOfUsername;
-	strcpy(currentuser.usernamestr,userName);
-	currentuser.pid=0;
+	user * currentuser = &sharedMem[numberofclients-1];
+
+	currentuser->length=sizeOfUsernam-1;
+	memcpy(&(currentuser->usernamestr), (void *)userName, sizeof(userName));
+	currentuser->pid=0;
+
+	printf("stored currentuser name length: %d \n", currentuser->length);
+	printf("currentuser userName: %s\n ", currentuser->usernamestr);
 
 
 
