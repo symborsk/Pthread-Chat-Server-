@@ -23,6 +23,7 @@ void * recieveMessage(void* socket);
 void handShake(int s);
 uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]);
 void sendUsername(int s);
+void readUsernames(int s, int numberOfUsers);
 
 int main()
 {
@@ -116,7 +117,7 @@ void handShake(int s){
 	unsigned char numberOfUsers;
 	recv(s, &numberOfUsers, sizeof(numberOfUsers), 0);
 	uint16_t intUsers  = (uint16_t)numberOfUsers;
-	readUsernames(intUsers);
+	readUsernames(s, intUsers);
 
 	if( first_confirmation != 0xCF || second_confirmation != 0xA7){
 		perror ("Client: Did not recieve correct server authentication");
@@ -126,11 +127,19 @@ void handShake(int s){
 	printf("Connection Complete\n");
 }
 
-void readUsernames(int numberOfUsers){
+void readUsernames(int s, int numberOfUsers){
 	int i;
-	for(int i = 0; i < numberOfUsers ; i++ ){
-		unsigned char buff[BufferSize];
-		
+	for( i = 0;  i < numberOfUsers ; i++ ){
+		unsigned char buff [BufferSize];
+
+		recv(s, &buff, sizeof(buff), 0);
+		unsigned char temp = buff[0];
+		uint16_t sizeOfUsername =  (uint16_t)temp;
+
+		unsigned char userName[sizeOfUsername-1];
+		memcpy(userName,(void *)&buff[1],sizeof(userName));
+
+		printf("Username %s is in the chat room\n", userName);	
 	}
 }
 
