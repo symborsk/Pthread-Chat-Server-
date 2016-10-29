@@ -11,34 +11,18 @@
 #include <pthread.h>
 
 #define	 MY_PORT  2222
-#define  MaxLength 20
-#define  BuffSize 200
+#define  MaxUsernameLength 20
+#define  BufferSize 256
 
 /* ---------------------------------------------------------------------
  This is a sample client program for the number server. The client and
  the server need not run on the same machine.				 
  --------------------------------------------------------------------- */
-uint16_t lengthOfUsername(unsigned char userName[MaxLength]){
-	uint16_t i;
-	for(i = 0; i < MaxLength; i++){
 
-		
-		if(userName[i] == '\0')
-			break;
-	}
-
-	return i + 1;
-}
-
-// void sendUsername(unsigned char username[MaxLength], int socket){
-// 	uint16_t sizeUser = lengthOfUsername(username);
-// 	uint16_t mySize = sizeUser;
-// 	uint16_t tmp = htons((uint16_t)mySize);
-	
-// 	send(socket, &tmp, sizeof(mySize), 0);
-// 	send(socket , &username, sizeof(username), 0);
-// }
 void * recieveMessage(void* socket);
+void handShake(int s);
+uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]);
+void sendUsername(int s);
 
 int main()
 {
@@ -50,14 +34,14 @@ int main()
 
 	pthread_t thread;
 
-	host = gethostbyname ("129.128.41.73");
+	host = gethostbyname ("142.244.113.72");
 
 	if (host == NULL) {
 		perror ("Client: cannot get host description");
 		exit (1);
 	}
 
-	s = socket (AF_INET, SOCK_STREAM, 0);
+	s = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (s < 0) {
 		perror ("Client: cannot open socket");
@@ -73,33 +57,25 @@ int main()
 		perror ("Client: cannot connect to server");
 		exit (1);
 	}
+	
+	handShake(s);
 
-	int abc = read (s, &first_confirmation, sizeof (first_confirmation));
-	printf("successfuly read: %d\n", abc);
-	read (s, &second_confirmation, sizeof(second_confirmation));
-	first_confirmation = ntohl (first_confirmation);
-	second_confirmation = ntohl (second_confirmation);
-
-	if( first_confirmation != 0xCF || second_confirmation != 0xA7){
-		perror ("Client: Did not recieve correct server authentication");
-		exit(1);
-	}
-	printf("Connection Complete\n");
+	//After the confirmation start a seperate thread for listening
 	int ret = pthread_create(&thread, NULL, recieveMessage, (void *)s);
 	if(ret){
 		printf("Error Creating Thread %d", ret);
 	}
 
+	sendUsername(s);	
+	// unsigned char username[MaxUsernameLength];
+	// printf("Enter username: ");
+	// scanf("%s", username);
+	// uint16_t sizeUser = lengthOfUsername(username);
+	// uint16_t mySize = sizeUser;
+	// uint16_t tmp = htons((uint16_t)mySize);
 	
-	unsigned char username[MaxLength];
-	printf("Enter username: ");
-	scanf("%s", username);
-	uint16_t sizeUser = lengthOfUsername(username);
-	uint16_t mySize = sizeUser;
-	uint16_t tmp = htons((uint16_t)mySize);
-	
-	int what = send(s, &tmp, sizeof(mySize), 0);
-	send(s, &username, sizeof(username), 0);
+	// int what = send(s, &tmp, sizeof(mySize), 0);
+	// send(s, &username, sizeof(username), 0);
 	close(s);
 	pthread_exit(NULL);
 }
@@ -108,10 +84,9 @@ void * recieveMessage(void* socket){
 	
 	int newSocket = (int)socket;
 	uint16_t sSize= 0;
+	int i;
 	while(1){
-		printf("RUNNING DA THREAD\n");
 		recv(newSocket, &sSize, sizeof(sSize), 0);
-		printf("Da Thread says: %d\n", sSize);
 		if(sSize == 65535){
 			close(newSocket);
 			exit(1);
@@ -122,7 +97,71 @@ void * recieveMessage(void* socket){
 		recv(newSocket, &buff, sizeof(buff), 0);
 		break;
 
+
+		for(i=0; i<sSize; i++){
+			printf("%c", sSize);
+		}
+		printf("\n");
 	}
+
+}
+
+void handShake(int s){
+	unsigned char confirmation[2];
+	recv(s, &confirmation, sizeof (confirmation), 0);
+	
+	uint16_t first_confirmation = (uint16_t)confirmation[0];
+	uint16_t second_confirmation = (uint16_t)confirmation[1];
+
+	unsigned char numberOfUsers;
+	recv(s, &numberOfUsers, sizeof(numberOfUsers), 0);
+	uint16_t intUsers  = (uint16_t)numberOfUsers;
+	readUsernames(intUsers);
+
+	if( first_confirmation != 0xCF || second_confirmation != 0xA7){
+		perror ("Client: Did not recieve correct server authentication");
+		exit(1);
+	}
+
+	printf("Connection Complete\n");
+}
+
+void readUsernames(int numberOfUsers){
+	int i;
+	for(int i = 0; i < numberOfUsers ; i++ ){
+		unsigned char buff[BufferSize];
+		
+	}
+}
+
+uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]){
+	uint16_t i;
+	for(i = 0; i < MaxUsernameLength; i++){
+
+		
+		if(userName[i] == '\0')
+			break;
+	}
+
+	return i + 1;
+}
+
+void sendUsername(int s){
+
+	unsigned char buff[MaxUsernameLength];
+	printf("Enter username: \n");
+	scanf("%s", buff);
+	unsigned char username[MaxUsernameLength];
+	
+	//Put in the length at the start
+	uint16_t sizeUser = lengthOfUsername(buff);
+	username[0] = (unsigned char) sizeUser;
+	
+	//Put in the username chars
+	memcpy(&username[1], (void *)buff, sizeUser-1);
+	 
+	printf("\nlength of username %u", username[0]);
+	send(s, &username, sizeof(username), 0);
 }
 
 
