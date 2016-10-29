@@ -35,7 +35,7 @@ int main()
 
 	pthread_t thread;
 
-	host = gethostbyname ("142.244.113.72");
+	host = gethostbyname ("129.128.41.43");
 
 	if (host == NULL) {
 		perror ("Client: cannot get host description");
@@ -59,6 +59,7 @@ int main()
 		exit (1);
 	}
 	
+	//Handshake includeds readinf of specific usernames as well as confirmation code
 	handShake(s);
 
 	//After the confirmation start a seperate thread for listening
@@ -68,15 +69,6 @@ int main()
 	}
 
 	sendUsername(s);	
-	// unsigned char username[MaxUsernameLength];
-	// printf("Enter username: ");
-	// scanf("%s", username);
-	// uint16_t sizeUser = lengthOfUsername(username);
-	// uint16_t mySize = sizeUser;
-	// uint16_t tmp = htons((uint16_t)mySize);
-	
-	// int what = send(s, &tmp, sizeof(mySize), 0);
-	// send(s, &username, sizeof(username), 0);
 	close(s);
 	pthread_exit(NULL);
 }
@@ -84,22 +76,28 @@ int main()
 void * recieveMessage(void* socket){
 	
 	int newSocket = (int)socket;
-	uint16_t sSize= 0;
-	int i;
+	unsigned char sSize;
 	while(1){
-		recv(newSocket, &sSize, sizeof(sSize), 0);
-		if(sSize == 65535){
+		
+		int recievedBytes = recv(newSocket, &sSize, sizeof(sSize), 0);
+		printf("%d", recievedBytes);
+		if(recievedBytes == 0){
 			close(newSocket);
 			exit(1);
-			break;
 		}
 
 		unsigned char buff[sSize];
-		recv(newSocket, &buff, sizeof(buff), 0);
+		recievedBytes = recv(newSocket, &buff, sizeof(buff), 0);
+		printf("%d", recievedBytes);
+		if(recievedBytes == 0){
+			close(newSocket);
+			exit(1);
+		}
+
 		break;
 
-
-		for(i=0; i<sSize; i++){
+		int i;
+		for( i=0; i<sSize; i++){
 			printf("%c", sSize);
 		}
 		printf("\n");
@@ -136,8 +134,8 @@ void readUsernames(int s, int numberOfUsers){
 		unsigned char temp = buff[0];
 		uint16_t sizeOfUsername =  (uint16_t)temp;
 
-		unsigned char userName[sizeOfUsername-1];
-		memcpy(userName,(void *)&buff[1],sizeof(userName));
+		unsigned char username[sizeOfUsername-1];
+		memcpy(username, (void *)&buff[1], sizeof(username));
 
 		printf("Username %s is in the chat room\n", username);	
 	}
