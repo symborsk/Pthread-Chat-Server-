@@ -183,11 +183,31 @@ void handShake(int snew){
 void sendCurrentUserNames(int snew){
 	int i;
 
+	// unsigned char buff[MaxUsernameLength];
+	// printf("Enter username: \n");
+	// scanf("%s", buff);
+	// unsigned char username[MaxUsernameLength];
+	
+	// //Put in the length at the start
+	// uint16_t sizeUser = lengthOfUsername(buff);
+	// username[0] = (unsigned char) sizeUser;
+	
+	// //Put in the username chars
+	// memcpy(&username[1], (void *)buff, sizeUser-1);
+	 
+	// printf("\nlength of username %u", username[0]);
+	// send(s, &username, sizeof(username), 0);
+
 	for(i=0;i<numberofclients-1;i++){
 		user currentuser= listofusers[i];
-		uint16_t length = htons( currentuser.length);
+		unsigned char length = (unsigned char) currentuser.length;
 		unsigned char username [currentuser.length];
+		username[0] = length;
 		
+		memcpy(&userName[1], (void *)currentuser.username, currentuser.length-1);
+		
+		send(snew, username, sizeof(username));
+
 
 	}
 
