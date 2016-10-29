@@ -139,7 +139,7 @@ void readUsernames(int s, int numberOfUsers){
 		unsigned char userName[sizeOfUsername-1];
 		memcpy(userName,(void *)&buff[1],sizeof(userName));
 
-		printf("Username %s is in the chat room\n", userName);	
+		printf("Username %s is in the chat room\n", username);	
 	}
 }
 
