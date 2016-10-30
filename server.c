@@ -8,6 +8,11 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/mman.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
+
 #define	MY_PORT	2222
 #define MAXSIZE 20
 
@@ -22,6 +27,8 @@ void handShake(int snew);
 uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]);
 void sendCurrentUserNames(int snew);
 void getUsername(int snew);
+void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes);
+void * recieveMessage(void* socket);
 
 typedef struct users{
 	int length;
@@ -32,22 +39,32 @@ typedef struct users{
 int number = 0;
 int numberofclients=0;
 int fd;
-user* sharedMem;
+pid_t forkstatus;
+user listofusers[MAXSIZE];
+// volatile user* sharedMem=listofusers;
 
 int main(){	
 	
 	fd_set fd_active;
 	fd_set read_fd_set;
 	struct timeval timer;
-	timer.tv_sec=10;
+	timer.tv_sec=5;
 	timer.tv_usec=2000;
+	forkstatus =0;
 
-	sharedMem = mmap(NULL, sizeof(user)*MAXSIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	// fd = shm_open("/myregion", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+	// if(fd==-1){
+	// 	printf("error opening fd\n");
+	// }
+	// if(ftruncate(fd,sizeof(listofusers))==1){
+	// 	printf("truncate error\n");
+	// }
+	// sharedMem = mmap(NULL, sizeof(user)*MAXSIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, fd, 0);
 	
-	if(sharedMem == MAP_FAILED){
-		printf("Error: %s\n", strerror(errno));
-		exit(1);
-	}
+	// if(sharedMem == MAP_FAILED){
+	// 	printf("Error: %s\n", strerror(errno));
+	// 	exit(1);
+	// }
 
 	int	sock, snew, fromlength, number, outnum;
 	uint16_t inlength,usernameLength, in_uint16_t;
@@ -73,7 +90,6 @@ int main(){
 	FD_ZERO(&fd_active);
 	FD_SET(sock,&fd_active);
 
-	pid_t forkstatus = 1; 
 	for(;;){
 		number = 0;
 		
@@ -95,38 +111,40 @@ int main(){
 		int i=0;
 		for(i;i<FD_SETSIZE;i++){			
 			if(FD_ISSET(i, &read_fd_set)){
+				printf("numberofclients %d  forkstatus: %d\n",numberofclients, forkstatus);
 				if(i == sock){
 					fromlength = sizeof (from);
 					
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
 
-					printf("forking\n");
-					numberofclients++;
-					forkstatus = fork();
+					if(setsockopt(snew,SOL_SOCKET,SO_RCVTIMEO, (char *)&timer, sizeof(timer))<0){
+						perror("setting timeout failed");
+					}
+					if (snew < 0) 
+					{
+						perror ("Server: accept failed");
+						exit (1);
+					}
 					
-
+					handShake(snew);
+					
 					//Child process
 					if(forkstatus == 0){
-						//user currentuser=listofusers[numberofclients];
-						
-						printf("im a child\n");
 						close(sock);
-						
-						
-						if(setsockopt(snew,SOL_SOCKET,SO_RCVTIMEO, (char *)&timer, sizeof(timer))<0){
-							perror("setting timeout failed");
-						}
-						if (snew < 0) 
-						{
-							perror ("Server: accept failed");
-							exit (1);
-						}
-						
-						handShake(snew);
-						printf("going into function\n");
-						
+						printf("child proccess\n");
 						FD_SET(snew, &fd_active);
+						
 
+						//chatting
+						for(;;){
+							int a = recv(snew,&inlength,sizeof(inlength),0);
+							printf("a is : %d\n",a );
+							if(a<=0){
+
+								printf("exiting\n");
+								break;
+							}
+						}
 						// in_uint16_t=-1;
 						// int a = recv(snew,&inlength,sizeof(inlength),0);
 						
@@ -158,7 +176,6 @@ int main(){
 						close(snew);
 						exit(1);
 					}
-					//Parent process
 					else{
 						close(snew);	
 					}
@@ -185,8 +202,8 @@ void handShake(int snew){
 	outarray[1] = (unsigned char) (holdingNumber);
 	send (snew, &outarray, sizeof (outarray),0);
 
-	unsigned char numberOfUsers = (unsigned char)numberofclients-1; 
-	printf("Number of users  %d\n",numberofclients );
+	unsigned char numberOfUsers = (unsigned char)numberofclients; 
+	printf("Number of users  %d\n",numberofclients);
 	send (snew,&numberOfUsers, sizeof(numberOfUsers),0);
 	sendCurrentUserNames(snew);
 	getUsername(snew);	
@@ -195,24 +212,23 @@ void handShake(int snew){
 void sendCurrentUserNames(int snew){
 	int i;
 	printf("numberofclients %d\n",numberofclients);
-	for(i=0;i<numberofclients-1;i++){
-		user* currentuser= &sharedMem[i];
+	for(i=0;i<numberofclients;i++){
+		user currentuser= listofusers[i];
 		
-		printf("this is the usernamestr %s\n",currentuser->usernamestr );
-		printf("this is the username length%d\n",currentuser->length );
+		printf("this is the sent usernamestr %s\n", currentuser.usernamestr );
+		printf("this is the username length sent %d\n", currentuser.length );
 
 		
-		unsigned char length = (unsigned char) currentuser->length;
-		unsigned char username [currentuser->length];
-		username[0] = length;
-		
-		// printf("this is the usernamestr %s\n",currentuser.usernamestr );
-		// printf("this is the username length%d\n",currentuser.length );
-		memcpy(&username[1], (void *)&currentuser->usernamestr, currentuser->length-1);
-		
-		int sendval=send(snew, &username, sizeof(username),0);
-		printf("%s\n",username );
+		unsigned char length = (unsigned char) currentuser.length;
+		printf("length from array %d\n", (uint16_t) length);
+		send(snew, &length, sizeof(length), 0);
 
+		// unsigned char username [currentuser.length];
+		// memcpy(username, (void *)currentuser.usernamestr, currentuser.length);
+
+		int sendval  = send(snew, (void *)currentuser.usernamestr, currentuser.length ,0 );
+		// printf("%s\n",username );
+		// memset(username, '\0', currentuser.length);
 		if(sendval<=0){
 			printf("send failed\n");
 		}
@@ -225,7 +241,6 @@ uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
 	uint16_t i;
 	for(i = 0; i < MAXSIZE; i++){
 
-		
 		if(userName[i] == '\0')
 			break;
 	}
@@ -234,36 +249,81 @@ uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
 }
 
 void getUsername(snew){
-	unsigned char buff [MAXSIZE];
 	
-	int receivebytes = recv(snew, &buff, sizeof(buff), 0);
-	if(receivebytes<=0){
+	unsigned char sizeOfUsername;
+	int receivebytes_val  = recv(snew, &sizeOfUsername, sizeof(sizeOfUsername), 0);
+	if(receivebytes_val<=0){
 		close(snew);
 		printf("closing socket\n");
 		exit(1);
 	}
+	uint16_t temp=(uint16_t) sizeOfUsername;
+	unsigned char buff [temp];
 
-	unsigned char temp = buff[0];
-	uint16_t sizeOfUsername =  (uint16_t)temp;
+	recievedBytes(snew,buff,sizeOfUsername);
+	user * currentuser = &listofusers[numberofclients];
+
+	currentuser->length=sizeOfUsername;
+	memcpy(currentuser->usernamestr, (void *)buff, sizeof(buff));
 	
+	numberofclients++;
 
-	unsigned char userName[sizeOfUsername-1];
-	memcpy(userName,(void *)&buff[1],sizeof(userName));
+	pid_t tempfork = fork();
+	forkstatus = tempfork;
+	currentuser->pid = forkstatus;
 
-	int i;
-	printf("Saving new user\n");
-	printf("numberofclients = %d\n",numberofclients );
-	printf("Name: %s\n",userName );
+	printf("temp_fork%d\n", tempfork);
+}
 
-	user * currentuser = &sharedMem[numberofclients-1];
+void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes){
 
-	currentuser->length=sizeOfUsernam-1;
-	memcpy(&(currentuser->usernamestr), (void *)userName, sizeof(userName));
-	currentuser->pid=0;
+	int numberToRead = numBytes;
+	unsigned char * spotInBuffer = buff;
+	
+	while(numberToRead > 0){
+		
+		int recievedBytes = recv(sock, spotInBuffer, numberToRead, 0);
+		if(recievedBytes <= 0){
+			perror("Socket close or server timeout");
+			exit(1);			
+		}
 
-	printf("stored currentuser name length: %d \n", currentuser->length);
-	printf("currentuser userName: %s\n ", currentuser->usernamestr);
+		printf("recieved byte : %d\n", recievedBytes);
 
+		// Increment the char pointer to current sunfilled spot 
+		spotInBuffer += recievedBytes;
+		numberToRead -= recievedBytes;
+	}
+}
 
+void * recieveMessage(void* socket){
+	
+	int newSocket = (int)socket;
+	unsigned char sSize;
+	while(1){
+		
+		int recievedBytes = recv(newSocket, &sSize, sizeof(sSize), 0);
+		printf("%d", recievedBytes);
+		if(recievedBytes <= 0){
+			close(newSocket);
+			exit(1);
+		}
+
+		unsigned char buff[sSize];
+		recievedBytes = recv(newSocket, &buff, sizeof(buff), 0);
+		printf("%d", recievedBytes);
+		if(recievedBytes <= 0){
+			close(newSocket);
+			exit(1);
+		}
+
+		break;
+
+		int i;
+		for( i=0; i<sSize; i++){
+			printf("%c", sSize);
+		}
+		printf("\n");
+	}
 
 }
