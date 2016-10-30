@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #define	 MY_PORT  2222
 #define  MaxUsernameLength 20
@@ -26,6 +27,7 @@ uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]);
 void sendUsername(int s);
 void readUsernames(int s, int numberOfUsers);
 void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes);
+void printUsername(unsigned char * buff, int size);
 
 struct timeval timer;
 int main()
@@ -73,9 +75,7 @@ int main()
 		printf("Error Creating Thread %d", ret);
 	}
 
-		
-	close(s);
-	pthread_exit(NULL);
+	while(1);	
 }
 
 void * recieveMessage(void* socket){
@@ -85,25 +85,24 @@ void * recieveMessage(void* socket){
 	while(1){
 		
 		int recievedBytes = recv(newSocket, &sSize, sizeof(sSize), 0);
-		printf("%d", recievedBytes);
 		if(recievedBytes <= 0){
+			printf("process timeouted\n");
 			close(newSocket);
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 
 		unsigned char buff[sSize];
 		recievedBytes = recv(newSocket, &buff, sizeof(buff), 0);
-		printf("%d", recievedBytes);
 		if(recievedBytes <= 0){
+			printf("process timeouted\n");
 			close(newSocket);
-			exit(1);
+			exit(EXIT_FAILURE);;
 		}
 
 		break;
 
 		int i;
 		for( i=0; i<sSize; i++){
-			printf("%c", sSize);
 		}
 		printf("\n");
 	}
@@ -158,17 +157,17 @@ void readUsernames(int s, int numberOfUsers){
 		int bytesRecievied = recv(s, &size, sizeof(size), 0);
 		
 		if(bytesRecievied <= 0){
-			printf("This many bytes recieve: %d\n", bytesRecievied);
 			perror("Server Closed");
 			exit(1);
 		}
 		
 		uint16_t intSize = (uint16_t)size;
 		unsigned char buff[intSize];
-		printf("trying to read %d bytes\n", intSize);
 		recievedBytes(s, buff, intSize);
 		
-		printf("Username %s has entered the chatroom", buff);
+		printf("Username: ");
+		printUsername(buff, intSize);
+		printf(" has entered \n");
 	}
 }	
 
@@ -181,7 +180,7 @@ uint16_t lengthOfUsername(unsigned char userName[MaxUsernameLength]){
 			break;
 	}
 
-	return i + 1;
+	return i;
 }
 
 void sendUsername(int s){
@@ -189,14 +188,15 @@ void sendUsername(int s){
 	unsigned char buff[MaxUsernameLength];
 	printf("Enter username: \n");
 	scanf("%s", buff);
-	unsigned char username[MaxUsernameLength];
 	
 	//Put in the length at the start
 	uint16_t sizeUser = lengthOfUsername(buff);
-	username[0] = (unsigned char) sizeUser;
+	unsigned char username[sizeUser+1];
+	username[0] = (unsigned char)sizeUser;
+	
 	
 	//Put in the username chars
-	memcpy(&username[1], (void *)buff, sizeUser-1);
+	memcpy(&username[1], (void *)buff, sizeUser);
 	 
 	send(s, &username, sizeof(username), 0);
 }
@@ -214,14 +214,18 @@ void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes){
 			exit(1);			
 		}
 
-		printf("recieved byte : %d\n", recievedBytes);
-
 		// Increment the char pointer to current sunfilled spot 
 		spotInBuffer += recievedBytes;
 		numberToRead -= recievedBytes;
 	}
 }
 
+void printUsername(unsigned char * buff, int size){
+	int i = 0;
+	for(i; i< size; i++){
+		printf("%c", (char)buff[i]);
+	}
+}
 
 
 
