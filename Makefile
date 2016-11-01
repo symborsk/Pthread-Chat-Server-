@@ -1,16 +1,16 @@
-all: client server
-server:server.o
-	gcc -o server server.o
+all: client379 server379
+server379:server.o
+	gcc -pthread -o server379 server.o
 server.o:server.c
-	gcc -c server.c
+	gcc -pthread -c server.c
 
-client: client.o
-	gcc -pthread -o client client.o
+client379: client.o
+	gcc -pthread -o client379 client.o
 client.o:client.c
 	gcc -pthread -c client.c
 
 clean:
 	rm -f client.o
-	rm -f client
+	rm -f client379
 	rm -f server.o
-	rm -f server
+	rm -f server379
