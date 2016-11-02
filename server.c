@@ -54,7 +54,21 @@ pid_t forkstatus;
 user * listofusers[MAXSIZE];
 // volatile user* sharedMem=listofusers;
 
-int main(){	
+int main(){
+	//daemonizing
+	forkstatus=fork();
+	if(forkstatus!=0){
+		printf("parent closing\n");
+		exit(1);
+	}
+	pid_t myPid=getpid();
+	printf("this is my pid %d\n",myPid);
+	
+	// int pidDigits=floor(log10 abs(myPid));	
+	// FILE *fp = fopen (filename, "r");
+ //   	if (fp!=NULL) fclose (fp);
+
+	
 	numberofclients=0;
 	
 	fd_set fd_active;
@@ -91,7 +105,7 @@ int main(){
 	pthread_t thread;
 	
 	for(;;){
-		
+
 
 		if(select(FD_SETSIZE,&read_fd_set,NULL,NULL,NULL)<0){
 			perror("select()");

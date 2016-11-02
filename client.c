@@ -53,7 +53,7 @@ int main()
 	timer.tv_sec = 5;
 	timer.tv_usec = 0;
 
-	host = gethostbyname ("129.128.41.82");
+	host = gethostbyname ("142.244.113.63");
 
 	if (host == NULL) {
 		perror ("Client: cannot get host description");
@@ -332,7 +332,7 @@ void chat(int socket){
 		memset(buff, '\0', BufferSize);
 		
 		// Give the message time to send
-		sleep(2);
+		//sleep(2);
 	}
 }
 
