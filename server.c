@@ -41,7 +41,9 @@ void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
 void removeUser(user* u);
 void addUser(user* u);
 void chat(user* u);
-void sendMessage(char* p, uint16_t size, unsigned char type);
+void sendChatMessage(char* p, uint16_t size);
+void sendJoinMessage(char* p, uint16_t size);
+void sendExitMessage(char* p, uint16_t size);
 void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
 void sendJoin(user * currentUser);
 void sendExit(user * currentUser);
@@ -96,10 +98,6 @@ int main(){
 			exit(1);
 		}
 		
-		
-
-		//Only want to frok if we are at the parent
-
 		int i=0;
 		for(i;i<FD_SETSIZE;i++){			
 			if(FD_ISSET(i, &read_fd_set)){
@@ -122,7 +120,6 @@ int main(){
 					newUser->fd = snew;
 					
 					//Create a listener thread
-					printf("making a new thread\n");
 					int ret = pthread_create(&thread, NULL, &handShake, (void*)newUser);
 				}
 				
@@ -138,25 +135,25 @@ int main(){
 }
 
 void addUser(user* u){
-	int i;
-	printf("Taking the lock for adduser\n");
+	
 	pthread_rwlock_wrlock(&lock);
+
+	int i;
 	for(i = 0; i< MAXSIZE ; i++){
 		
 		if(listofusers[i] == NULL){
 			continue;
 		}
 
-		printf("Comparing %s, to %s\n", listofusers[i]->usernamestr, u->usernamestr);
+		// This basically compares the longest username is all it does
 		if(strncmp(listofusers[i]->usernamestr, u->usernamestr,(u->length > listofusers[i]->length)? u->length:listofusers[i]->length)==0){
 				close(u->fd);
 				//free(u);
 				pthread_rwlock_unlock(&lock);
-				printf("Freed the lock adduser.\n");
 				return;
 		}
-		printf("past Comparing\n");
 	}
+	
 	for(i=0;i<MAXSIZE;i++){
 		
 
@@ -165,20 +162,17 @@ void addUser(user* u){
 			listofusers[i] = u;
 			numberofclients++;
 			pthread_rwlock_unlock(&lock);
-			printf("Freed the lock adduser.\n");
 			sendJoin(u);
 			return;
 		}
 	}
 	
 	pthread_rwlock_unlock(&lock);
-	printf("Freed the lock adduser.\n");
 }
 
 void removeUser(user * u){
 	
 	int i;
-	printf("Taking the lock removeuser.\n");
 	pthread_rwlock_wrlock(&lock);
 	for(i = 0; i< MAXSIZE ; i++){
 		
@@ -190,14 +184,12 @@ void removeUser(user * u){
 			listofusers[i] = NULL;
 			numberofclients--;
 			pthread_rwlock_unlock(&lock);
-			printf("Freed the lock remove user.\n");
 			sendExit(u);
 			return;
 		}
 	}
 
 	pthread_rwlock_unlock(&lock);
-	printf("Freed the lock remove user.\n");
 }
 
 void * handShake(void* u){
@@ -223,7 +215,6 @@ void * handShake(void* u){
 
 void sendCurrentUserNames(user * targetUser){
 	int i;
-	printf("Took the lock sendCurrentUserNames user.\n");
 	pthread_rwlock_rdlock(&lock);
 
 	for(i=0;i <MAXSIZE;i++){
@@ -241,8 +232,6 @@ void sendCurrentUserNames(user * targetUser){
 	}
 
 	pthread_rwlock_unlock(&lock);
-	printf("Freed the lock sendCurrentUserNames.\n");
-
 }
 
 uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
@@ -255,11 +244,11 @@ uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
 
 	return i + 1;
 }
+
 void closeSocket(user * u){
-	printf("Starting to close socket\n");
+	printf("closing socket\n");
 	removeUser(u);
 	close(u->fd);
-	printf("closing socket\n");
 	free(u);
 	pthread_exit(NULL);
 }
@@ -271,11 +260,6 @@ void getUsername(void* u){
 
 	recievedBytes(currentUser,(unsigned char*) &sizeOfUsername, 1);
 	
-	//int receivebytes_val  = recv(currentUser->fd, &sizeOfUsername, sizeof(sizeOfUsername), 0);
-	// if(receivebytes_val<=0){
-	// 	closeSocket(currentUser);
-	// }
-	
 	uint16_t size = (uint16_t) sizeOfUsername;
 	unsigned char buff [MAXSIZE];
 
@@ -285,9 +269,124 @@ void getUsername(void* u){
 	
 	currentUser->length= size;
 	
-	printf("about to add new user\n" );
 	addUser(currentUser); 
 
+}
+
+void chat(user * u){
+	user * currentUser = u;
+
+	uint16_t inlength;
+	for(;;){
+		unsigned char buffSize[2];
+		recievedBytes(currentUser, buffSize, 2);
+		
+		uint16_t temp = buffSize[1] << 8 + buffSize[0];
+		uint16_t size = ntohs(temp);
+
+		unsigned char buffMessage[MAXSIZE];
+		memset(buffMessage, '\0', MAXSIZE);
+		
+		recievedBytes(currentUser, buffMessage, size);
+		
+		
+		uint16_t outsize=size+(currentUser->length)+2;
+		unsigned char outMessage[MAXSIZE];
+		memset(outMessage, '\0', MAXSIZE);
+
+		//Set up the array so it sends a readable message "username : message"
+		memcpy(outMessage,(void*) currentUser->usernamestr,currentUser->length);
+		memset(&outMessage[currentUser->length], ':',1);
+		memset(&outMessage[currentUser->length+1 ], ' ',1);
+		memcpy(&outMessage[currentUser->length +2], (void *) buffMessage, size);
+
+		outMessage[outsize] = '\0';
+
+		sendChatMessage(outMessage,outsize);
+
+		memset(buffMessage, '\0', MAXSIZE);
+		memset(outMessage, '\0', MAXSIZE);
+
+	}
+}
+ 
+void sendChatMessage(char* p, uint16_t size){
+
+	pthread_rwlock_rdlock(&lock);
+	int i;
+	for(i = 0; i < MAXSIZE; i++){
+		user * currentUser  = listofusers[i];
+		
+		if(currentUser != NULL){
+			unsigned char type = 0x0;
+			uint16_t hostToNet=htons(size);
+	
+			sendBytes(currentUser,&type,1);
+			sendBytes(currentUser,(unsigned char*)&hostToNet,2);
+			sendBytes(currentUser,p,size);
+		}
+	}
+	pthread_rwlock_unlock(&lock);
+}
+
+void sendJoinMessage(char* p, uint16_t size){
+
+	pthread_rwlock_rdlock(&lock);
+	
+	int i;
+	for(i = 0; i < MAXSIZE; i++){
+		user * currentUser  = listofusers[i];
+		
+		if(currentUser != NULL){
+			unsigned char type = 0x1;
+			unsigned char charSize = (unsigned char) size;
+			
+			sendBytes(currentUser,&type,1);
+			sendBytes(currentUser, &charSize, 1);
+			sendBytes(currentUser, p ,size);
+		}
+	}
+
+	pthread_rwlock_unlock(&lock);
+}
+
+void sendExitMessage(char* p, uint16_t size){
+	pthread_rwlock_rdlock(&lock);
+	
+	int i;
+	for(i = 0; i < MAXSIZE; i++){
+		user * currentUser  = listofusers[i];
+		
+		if(currentUser != NULL){
+			unsigned char type = 0x2;
+			unsigned char charSize = (unsigned char)size;
+
+			sendBytes(currentUser,&type,1);
+			sendBytes(currentUser, &charSize, 1);
+			sendBytes(currentUser, p, size);
+		}
+	}
+	
+	pthread_rwlock_unlock(&lock);
+}
+
+void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
+	int sock =currentUser->fd;
+
+	int numberToSend = numBytes;
+	unsigned char * spotInBuffer = buff;
+	
+	while(numberToSend > 0){
+		int sentBytes = send(sock, spotInBuffer, numberToSend, 0);
+		if(sentBytes <= 0){
+			perror("Socket close or server timeout");
+			closeSocket(currentUser);			
+		}
+	
+		// Increment the char pointer to current sunfilled spot 
+		spotInBuffer += sentBytes;
+		numberToSend -= sentBytes;
+	}
 }
 
 void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
@@ -311,95 +410,13 @@ void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 	}
 }
 
-void chat(user * u){
-	user * currentUser = u;
-
-	uint16_t inlength;
-	for(;;){
-		unsigned char buffSize[2];
-		recievedBytes(currentUser, buffSize, 2);
-		
-		uint16_t temp = buffSize[1] << 8 + buffSize[0];
-		uint16_t size = ntohs(temp);
-
-		unsigned char buffMessage[MAXSIZE];
-		memset(buffMessage, '\0', MAXSIZE);
-		
-		recievedBytes(currentUser, buffMessage, size);
-		
-		unsigned char type = (unsigned char) 0x0;
-		
-		uint16_t outsize=size+(currentUser->length)+2;
-		unsigned char outMessage[MAXSIZE];
-		memset(outMessage, '\0', MAXSIZE);
-
-	
-		
-		memcpy(outMessage,(void*) currentUser->usernamestr,currentUser->length);
-		
-		memset(&outMessage[currentUser->length], ':',1);
-		memset(&outMessage[currentUser->length+1 ], ' ',1);
-
-		
-		memcpy(&outMessage[currentUser->length +2], (void *) buffMessage, size);
-
-		outMessage[outsize] = '\0';
-
-		sendMessage(outMessage,outsize,type);
-
-		memset(buffMessage, '\0', MAXSIZE);
-		memset(outMessage, '\0', MAXSIZE);
-
-	}
-}
- 
-void sendMessage(char* p, uint16_t size, unsigned char type){
-
-	printf("Taking the lock sendMessage.\n");
-	pthread_rwlock_rdlock(&lock);
-	int i;
-	for(i = 0; i < MAXSIZE; i++){
-		user * currentUser  = listofusers[i];
-		
-		if(currentUser != NULL){
-			// send(currentUser->fd, &type, sizeof(type), 0);
-			uint16_t hostToNet=htons(size);
-			// send(currentUser->fd,&hostToNet,sizeof(hostToNet),0);
-			// send(currentUser->fd,p,size,0);
-			
-			sendBytes(currentUser,&type,1);
-			sendBytes(currentUser,(unsigned char*)&hostToNet,2);
-			sendBytes(currentUser,p,size);
-
-		}
-	}
-	pthread_rwlock_unlock(&lock);
-	printf("Freeing the lock sendMessage.\n");
-}
-void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
-	int sock =currentUser->fd;
-
-	int numberToSend = numBytes;
-	unsigned char * spotInBuffer = buff;
-	
-	while(numberToSend > 0){
-		int sentBytes = send(sock, spotInBuffer, numberToSend, 0);
-		if(sentBytes <= 0){
-			perror("Socket close or server timeout");
-			closeSocket(currentUser);			
-		}
-	
-		// Increment the char pointer to current sunfilled spot 
-		spotInBuffer += sentBytes;
-		numberToSend -= sentBytes;
-	}
-}
 void sendJoin(user * currentUser){
-	unsigned char type= (unsigned char) 0x01;
-	sendMessage(currentUser->usernamestr,currentUser->length ,type);
+	
+	sendJoinMessage(currentUser->usernamestr,currentUser->length);
 }
 
 void sendExit(user * currentUser){
-	unsigned char type= (unsigned char) 0x02;	
-	sendMessage(currentUser->usernamestr,currentUser->length ,type);
+
+	sendExitMessage(currentUser->usernamestr,currentUser->length);
 }
+

@@ -32,7 +32,7 @@ void handShake(int s);
 uint16_t lengthOfString(unsigned char* userName);
 void sendUsername(int s);
 void printUsernames();
-void readMultipleUsernames(int s, int numberOfUsers);
+void readMultipleUsernames(int s, uint16_t numberOfUsers);
 void readAndAddUserName(int s);
 void readAndRemoveUserName(int s);
 void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes);
@@ -53,7 +53,7 @@ int main()
 	timer.tv_sec = 5;
 	timer.tv_usec = 0;
 
-	host = gethostbyname ("129.128.41.79");
+	host = gethostbyname ("129.128.41.82");
 
 	if (host == NULL) {
 		perror ("Client: cannot get host description");
@@ -83,7 +83,7 @@ int main()
 
 	pthread_t thread;
 	//After the confirmation start a seperate thread for listening
-	int ret = pthread_create(&thread, NULL, &recieveHandler, (void *)s);
+	int ret = pthread_create(&thread, NULL, &recieveHandler, (void *) &s);
 	if(ret){
 		printf("Error Creating Thread %d", ret);
 	}
@@ -93,7 +93,8 @@ int main()
 
 void * recieveHandler(void* socket){
 	
-	int newSocket = (int)socket;
+	//We passed in a void * that is an int * so cast it and dereference it
+	int newSocket = (int) *(int *)socket;
 	uint16_t code;
 	unsigned char buff[BufferSize];
 	memset(buff, '\0', BufferSize);
@@ -105,6 +106,7 @@ void * recieveHandler(void* socket){
 		//clear the buffer after we use it
 		memset(buff, '\0', BufferSize);
 
+		//User message
 		if(code == 0x00){
 			
 			//Recieving user message
@@ -122,59 +124,54 @@ void * recieveHandler(void* socket){
 			
 			memset(buff, '\0', BufferSize);
 		}
+		//Add user message
 		else if(code == 0x01){
 			
 			readAndAddUserName(newSocket);
 		}
+		//Remove user message
 		else if(code == 0x02){
 			
 			readAndRemoveUserName(newSocket);
 		}
 
+		//Something weird happened..... shouldnt happen
 		else{
-			printf("ServerMessage: %u\n", code);
 			printf("Server sent uknown code");
-
+			exit(1);
 		}
 	}
-
 }
 
-
-
 void handShake(int s){
-	unsigned char confirmation_one;
-	unsigned char confirmation_two;
+	unsigned char confirmation_one_byte;
+	unsigned char confirmation_two_byte;
 	
-	if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timer, sizeof(timer)) < 0)
-	 	error("setsockopt failed\n");
-	
-	// We cannot assume we will recieve 1 or 2 bytes so we need to account for those cases
-	int bytesRecievied = recv(s, &confirmation_one, sizeof (confirmation_one), 0);
-	
-	if(bytesRecievied <= 0){
-		perror("Server hung up or client timeout:");
-	}
-
-	bytesRecievied = recv(s, &confirmation_two, sizeof (confirmation_two), 0);
-
-	if(bytesRecievied <= 0){
-		perror("Server hung up or client timeout:");
+	//Make sure there is a timeout so the client doesn t wait for handshake forever
+	if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timer, sizeof(timer)) < 0){
+	 	
+	 	perror("setsockopt failed\n");
 	}
 	
-	uint16_t first_confirmation = (uint16_t)confirmation_one;
-	uint16_t second_confirmation = (uint16_t)confirmation_two;
+	recievedBytes(s, &confirmation_one_byte, sizeof(confirmation_one_byte));
+	recievedBytes(s, &confirmation_two_byte, sizeof(confirmation_two_byte));
+	
+	uint16_t first_confirmation = (uint16_t)confirmation_one_byte;
+	uint16_t second_confirmation = (uint16_t)confirmation_two_byte;
+	
 	if( first_confirmation != 0xCF || second_confirmation != 0xA7){
 		perror ("Client: Did not recieve correct server authentication");
 		exit(1);
 	}
 
 	unsigned char numberOfUsers;
-	recv(s, &numberOfUsers, sizeof(numberOfUsers), 0);
+	recievedBytes(s, &numberOfUsers, sizeof(numberOfUsers));
 	
 	uint16_t intUsers  = (uint16_t)numberOfUsers;
+	
 	readMultipleUsernames(s, intUsers);
 
+	//After the authentication is complete there is not timeout on the receive end of the user
 	timer.tv_sec = 0;
 	if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timer, sizeof(timer)) < 0){	
 	 	perror("setsockopt failed second time\n");
@@ -183,7 +180,7 @@ void handShake(int s){
 	printf("Connection Complete\n");
 }
 
-void readMultipleUsernames(int s, int numberOfUsers){
+void readMultipleUsernames(int s, uint16_t numberOfUsers){
 	
 	int i;
 	for( i = 0;  i < numberOfUsers ; i++ ){
@@ -193,32 +190,32 @@ void readMultipleUsernames(int s, int numberOfUsers){
 
 void readAndAddUserName(int s){
 		
-		unsigned char buff[BufferSize];
-		memset(buff, '\0', BufferSize);
-		
-		recievedBytes(s, buff, 1);
+	unsigned char buff[BufferSize];
+	memset(buff, '\0', BufferSize);
+	
+	recievedBytes(s, buff, 1);
 
-		uint16_t size = (uint16_t)buff[0];
-		memset(buff, '\0', BufferSize);
+	uint16_t size = (uint16_t)buff[0];
+	memset(buff, '\0', BufferSize);
 
-		recievedBytes(s, buff, size);
-		
-		userAdded(buff, size);
+	recievedBytes(s, buff, size);
+	
+	userAdded(buff, size);
 }
 
 void readAndRemoveUserName(int s){
 
-		unsigned char buff[BufferSize];
-		memset(buff, '\0', BufferSize);
-		
-		recievedBytes(s, buff, 1);
+	unsigned char buff[BufferSize];
+	memset(buff, '\0', BufferSize);
+	
+	recievedBytes(s, buff, 1);
 
-		uint16_t size = (uint16_t)buff[0];
-		memset(buff, '\0', BufferSize);
+	uint16_t size = (uint16_t)buff[0];
+	memset(buff, '\0', BufferSize);
 
-		recievedBytes(s, buff, size);
-		
-		userRemoved(buff, size);
+	recievedBytes(s, buff, size);
+	
+	userRemoved(buff, size);
 }
 
 uint16_t lengthOfString(unsigned char* userName){
@@ -252,14 +249,13 @@ void sendUsername(int s){
 
 void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes){
 
-	printf("Current file descriptor%d\n", sock);
 	int numberToRead = numBytes;
 	unsigned char * spotInBuffer = buff;
 	while(numberToRead > 0){
 		
 		int readBytes = recv(sock, spotInBuffer, numberToRead, 0);
 		if(readBytes <= 0){
-			perror("recieve from to socket failed: ");
+			perror("Recieve from socket failed");
 			close(sock);
 			exit(1);			
 		}
@@ -279,7 +275,7 @@ void sendBytes(int sock, unsigned char* buff, uint16_t numBytes){
 		int sentBytes = send(sock, spotInBuffer, numberToWrite, 0);
 
 		if(sentBytes <= 0){
-			perror("Socket close or server timeout");
+			perror("Send to socket failed:");
 			close(sock);
 			exit(1);			
 		}
@@ -293,12 +289,28 @@ void sendBytes(int sock, unsigned char* buff, uint16_t numBytes){
 void chat(int socket){
 
 	for(;;){
-		
+		//THIS IS THE TIMEOUT STUFF IN CLIENT AARON 
+		// struct timeval tv;
+  //   	fd_set fds;
+
+  //   	tv.tv_sec = 2;
+  //   	tv.tv_usec = 0;
+
+  //  		FD_ZERO(&fds);
+   		
+  //   	FD_SET(STDIN_FILENO, &fds);
+
+		// if(select(STDIN_FILENO+1, &fds, NULL, NULL, &tv) <= 0){
+			
+		// 	printf("STDIN timeout reached sending dummy message\n");
+		// 	//TODO: send dummy message
+		// 	continue;
+		// }
+		//THIS IS THE TIMEOUT STUFF IN CLIENT AARON 
+
 		unsigned char buff[BufferSize];
-		// memset(buff, '\0', BufferSize);
-		
-		printf(">> ");
 		fgets(buff, BufferSize, stdin);
+
 		
 		if(strncmp(buff, ".quit", 5) == 0){
 			printf("exiting chatroom\n");
@@ -312,17 +324,15 @@ void chat(int socket){
 		}
 		
 		uint16_t size = lengthOfString(buff);
-		printf("Size of message: %d\n", size);
 		uint16_t networkSize = htons(size);
 
-		printf("Sending out the message: %s\n", buff);
-		
 		sendBytes(socket, (unsigned char *)&networkSize, 2);
 		sendBytes(socket, buff, size);
 
 		memset(buff, '\0', BufferSize);
+		
 		// Give the message time to send
-		sleep(1);
+		sleep(2);
 	}
 }
 
@@ -338,9 +348,12 @@ void userAdded(char* username, int size){
 		//Look through our list and find the first free spot
 		if(listUsers[i] == 0){
 			listUsers[i] = User;
-			break;
+			printf("%s has entered the chat room\n", User->username);
+			return;
 		}
 	}
+
+	printf("We have reached our limit of username storage\n");
 
 }
 
@@ -353,10 +366,11 @@ void userRemoved(char* userName, int size){
 			continue;
 		}
 
-		if(strncmp(listUsers[i]->username, userName, size)){
+		if(strncmp(listUsers[i]->username, userName, size) == 0){
+			printf("%s has left the chat room\n", listUsers[i]->username);
+			free(listUsers[i]);
 			listUsers[i] = 0;
-			free(&listUsers[i]);
-			break;
+			return;
 		}
 	}
 
@@ -372,6 +386,8 @@ void printUsernames(){
 		printf("%s\n", listUsers[i]->username);
 	}
 }
+
+
 
 
 
