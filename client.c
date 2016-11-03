@@ -59,12 +59,10 @@ int main(int argc, char *argv[])
     struct	sockaddr_in	server;
 	struct	hostent		*host;
 
-    printf("This is IP: %s\n", argv[0]);
     host = gethostbyname(argv[1]);
     uint16_t port = atoi(argv[2]);
 	
 	InitializeSignalHandlers();
-
 	timer.tv_sec = 5;
 	timer.tv_usec = 0;
 
