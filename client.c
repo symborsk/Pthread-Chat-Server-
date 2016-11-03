@@ -328,29 +328,30 @@ void chat(){
 }
 
 void userAdded(char* username, int size){
-	int i;
 	
 	user * User = (user *)malloc(sizeof(user));
 	User->len = size;
 	memcpy(&(User->username), username, size); 
 	User->username[size] = '\0';
 	
+	pthread_rwlock_wrlock(&lock);
+	int i;
 	for(i = 0; i < MaxUsernames ; i++){
 	
 		//Look through our list and find the first free spot
 		if(listUsers[i] == 0){
 			listUsers[i] = User;
 			printf(" %s has entered the chat room\n", User->username);
-			return;
+			break;
 		}
 	}
 
-	printf("We have reached our limit of username storage\n");
-
+	pthread_rwlock_unlock(&lock);
 }
 
 void userRemoved(char* userName, int size){
-	
+
+	pthread_rwlock_wrlock(&lock);
 	int i;
 	for(i = 0; i< MaxUsernames; i++){
 		
@@ -362,13 +363,17 @@ void userRemoved(char* userName, int size){
 			printf(" %s has left the chat room\n", listUsers[i]->username);
 			free(listUsers[i]);
 			listUsers[i] = 0;
-			return;
+			break;
 		}
 	}
 
+	pthread_rwlock_unlock(&lock);
 }
 
 void printUsernames(){
+	
+	pthread_rwlock_rdlock(&lock);
+	
 	int i;
 	for(i = 0; i < MaxUsernames; i++){
 		
@@ -378,6 +383,8 @@ void printUsernames(){
 
 		printf("%s\n", listUsers[i]->username);
 	}
+
+	pthread_rwlock_unlock(&lock);
 }
 
 void sendKeepAliveMessage(){

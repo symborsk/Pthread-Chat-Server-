@@ -65,4 +65,6 @@ struct sigaction currentSigHandler;
 
 int socketFD;
 
+pthread_rwlock_t lock =  PTHREAD_RWLOCK_INITIALIZER;
+
 #endif 
