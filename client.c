@@ -1,54 +1,5 @@
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <strings.h>
-#include <string.h>
-#include <errno.h>
-#include <pthread.h>
-#include <sys/time.h>
-#include <signal.h>
 
-#define  MaxUsernameLength 20
-#define  MaxUsernames 20
-#define  BufferSize 256
-
-typedef struct users{
-	int len;
-	unsigned char username[MaxUsernameLength];
-} user;
-/* ---------------------------------------------------------------------
- This is a sample client program for the number server. The client and
- the server need not run on the same machine.				 
- --------------------------------------------------------------------- */
-user* listUsers[MaxUsernameLength];
-
-void * recieveHandler(void * unUsed);
-void handShake();
-uint16_t lengthOfString(unsigned char* userName);
-void sendUsername();
-void printUsernames();
-void readMultipleUsernames(uint16_t numberOfUsers);
-void readAndAddUserName();
-void readAndRemoveUserName();
-void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes);
-void sendBytes(int sock, unsigned char* buff, uint16_t numBytes);
-void printUsername();
-void userAdded(char* username, int size);
-void userRemoved(char* userName, int size);
-void chat();
-void sendKeepAliveMessage();
-void InitializeSignalHandlers();
-void shutdownClient(int signal);
-
-struct timeval timer;
-
-struct sigaction priorSigHandler;
-struct sigaction currentSigHandler;
-int socketFD;
+#include "client.h"
 
 int main(int argc, char *argv[])
 {
@@ -102,7 +53,6 @@ int main(int argc, char *argv[])
 	sendUsername();
 	chat();	
 }
-
 
 void InitializeSignalHandlers(){
 
@@ -190,7 +140,7 @@ void * recieveHandler(void * unUsed){
 			readAndRemoveUserName();
 		}
 
-		//Something weird happened..... shouldnt happen
+		//Something weird happened..... shouldnt happen unless disconect 
 		else{
 			printf("Server sent uknown code");
 			shutdownClient(0);
@@ -390,7 +340,7 @@ void userAdded(char* username, int size){
 		//Look through our list and find the first free spot
 		if(listUsers[i] == 0){
 			listUsers[i] = User;
-			printf("%s has entered the chat room\n", User->username);
+			printf(" %s has entered the chat room\n", User->username);
 			return;
 		}
 	}
@@ -409,7 +359,7 @@ void userRemoved(char* userName, int size){
 		}
 
 		if(strncmp(listUsers[i]->username, userName, size) == 0){
-			printf("%s has left the chat room\n", listUsers[i]->username);
+			printf(" %s has left the chat room\n", listUsers[i]->username);
 			free(listUsers[i]);
 			listUsers[i] = 0;
 			return;
@@ -425,6 +375,7 @@ void printUsernames(){
 		if(listUsers[i] == NULL){
 			continue;
 		}
+
 		printf("%s\n", listUsers[i]->username);
 	}
 }
