@@ -460,7 +460,7 @@ void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 		if(sentBytes <= 0){
 			
 			if(sentBytes == -1)
-				fprintf(fp, "%s\n",strerror(errno));
+				fprintf(fp, "Failed in sending: %s\n",strerror(errno));
 			
 			closeSocket(currentUser);			
 		}
@@ -484,7 +484,7 @@ void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 		if(recievedBytes <= 0){
 			
 			if(recievedBytes == -1)
-				fprintf(fp, "%s\n",strerror(errno));
+				fprintf(fp, "Failed in receiving: %s\n",strerror(errno));
 
 			closeSocket(currentUser);			
 		}
