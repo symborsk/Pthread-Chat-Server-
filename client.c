@@ -175,6 +175,7 @@ void * recieveHandler(void * unUsed){
 			printf("%s : %s\n", buffUsername, buffMessage);
 			
 			memset(buffMessage, '\0', BufferSize);
+			memset(buffUsername, '\0', BufferSize);
 		}
 
 		//Add user message
@@ -182,6 +183,7 @@ void * recieveHandler(void * unUsed){
 			
 			readAndAddUserName();
 		}
+
 		//Remove user message
 		else if(code == 0x02){
 			
@@ -234,6 +236,7 @@ void handShake(){
 
 void readMultipleUsernames(uint16_t numberOfUsers){
 	
+	printf("Number of usernames being recieved %d", numberOfUsers);
 	int i;
 	for( i = 0;  i < numberOfUsers ; i++ ){
 		readAndAddUserName();
@@ -405,7 +408,7 @@ void userRemoved(char* userName, int size){
 		if(listUsers[i] == 0){
 			continue;
 		}
-		printf("comparing %s, to %s\n", userName, listUsers[i]->username);
+
 		if(strncmp(listUsers[i]->username, userName, size) == 0){
 			printf("%s has left the chat room\n", listUsers[i]->username);
 			free(listUsers[i]);
