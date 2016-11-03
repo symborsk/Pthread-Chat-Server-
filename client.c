@@ -236,7 +236,6 @@ void handShake(){
 
 void readMultipleUsernames(uint16_t numberOfUsers){
 	
-	printf("Number of usernames being recieved %d", numberOfUsers);
 	int i;
 	for( i = 0;  i < numberOfUsers ; i++ ){
 		readAndAddUserName();
