@@ -59,12 +59,10 @@ int main(int argc, char *argv[])
     struct	sockaddr_in	server;
 	struct	hostent		*host;
 
-    printf("This is IP: %s\n", argv[0]);
     host = gethostbyname(argv[1]);
     uint16_t port = atoi(argv[2]);
 	
 	InitializeSignalHandlers();
-
 	timer.tv_sec = 5;
 	timer.tv_usec = 0;
 
@@ -177,6 +175,7 @@ void * recieveHandler(void * unUsed){
 			printf("%s : %s\n", buffUsername, buffMessage);
 			
 			memset(buffMessage, '\0', BufferSize);
+			memset(buffUsername, '\0', BufferSize);
 		}
 
 		//Add user message
@@ -184,6 +183,7 @@ void * recieveHandler(void * unUsed){
 			
 			readAndAddUserName();
 		}
+
 		//Remove user message
 		else if(code == 0x02){
 			
@@ -407,7 +407,7 @@ void userRemoved(char* userName, int size){
 		if(listUsers[i] == 0){
 			continue;
 		}
-		printf("comparing %s, to %s\n", userName, listUsers[i]->username);
+
 		if(strncmp(listUsers[i]->username, userName, size) == 0){
 			printf("%s has left the chat room\n", listUsers[i]->username);
 			free(listUsers[i]);
