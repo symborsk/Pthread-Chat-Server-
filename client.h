@@ -16,13 +16,18 @@
 #include <signal.h>
 
 #define  MaxUsernameLength 20
-#define  MaxUsernames 20
+#define  MaxUsernames 256
 #define  BufferSize 256
 
 typedef struct users{
 	int len;
 	unsigned char username[MaxUsernameLength];
 } user;
+
+typedef struct userLinks{
+	user* user;
+	struct userLinks* next;
+} userLink;
 
 //Thread function for recieving
 void * recieveHandler(void * unUsed);
@@ -66,5 +71,7 @@ struct sigaction currentSigHandler;
 int socketFD;
 
 pthread_rwlock_t lock =  PTHREAD_RWLOCK_INITIALIZER;
+
+ userLink* firstLink;
 
 #endif 
