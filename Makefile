@@ -1,12 +1,14 @@
 all: client379 server379
+	
 server379:server.o
 	gcc -pthread -o server379 server.o
 server.o:server.c
 	gcc -pthread -c server.c
 
-client379: client.o
+client379: client.o client.h
 	gcc -pthread -o client379 client.o
-client.o:client.c
+
+client.o:client.c client.h
 	gcc -pthread -c client.c
 
 clean:
