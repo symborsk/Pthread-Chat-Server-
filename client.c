@@ -3,8 +3,8 @@
 
 int main(int argc, char *argv[])
 {
-    if(argc != 3){
-    	printf("This program requires IP Address and Port number as two input arguments. Exiting...\n");
+    if(argc != 4){
+    	printf("This program requires IP Address and Port number and username as 3 input arguments. Exiting...\n");
     	exit(1);
     }
     struct	sockaddr_in	server;
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 		shutdownClient(1);
 	}
 
-	sendUsername();
+	sendUsername(argv[3]);
 	chat();	
 }
 
@@ -234,21 +234,13 @@ uint16_t lengthOfString(unsigned char* userName){
 	return i;
 }
 
-void sendUsername(){
-
-	unsigned char buff[MaxUsernameLength];
-	printf("Enter username: \n>>");
-	fgets(buff, MaxUsernameLength, stdin);
-	
+void sendUsername(unsigned char* username){
 	//Put in the length at the start
-	uint16_t sizeUser = lengthOfString(buff);
-	unsigned char username[sizeUser+1];
-	username[0] = (unsigned char)sizeUser;
+	uint16_t sizeUser = lengthOfString(username);
+	unsigned char user = (unsigned char) sizeUser;
 	
-	//Put in the username chars
-	memcpy(&username[1], (void *)buff, sizeUser);
-	 
-	sendBytes(socketFD, username, sizeof(username));
+	sendBytes(socketFD, &user, 1);
+	sendBytes(socketFD, username, sizeUser);
 }
 
 void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes){
@@ -295,7 +287,7 @@ void chat(){
 		struct timeval tv;
     	fd_set fds;
 
-    	tv.tv_sec = 3;
+    	tv.tv_sec = 20;
     	tv.tv_usec = 0;
 
    		FD_ZERO(&fds);

@@ -37,7 +37,7 @@ void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes);
 void sendBytes(int sock, unsigned char* buff, uint16_t numBytes);
 
 void handShake();
-void sendUsername();
+void sendUsername(unsigned char * username);
 void printUsernames();
 
 void readMultipleUsernames(uint16_t numberOfUsers);

@@ -6,6 +6,7 @@ void sigHandler(int sig){
 	exitAll();
 	sigaction(SIGTERM, &priorSigHandler, 0);
 	fprintf(fp, "-SHUTTING DOWN- All users exited successfully\n");
+	fprintf(fp, "Terminating...\n");
 	fclose(fp);	
 	exit(1);
 }
@@ -81,7 +82,7 @@ int main(int argc, char *argv[]){
 	fd_set fd_active;
 	fd_set read_fd_set;
 	struct timeval timer;
-	timer.tv_sec=15;
+	timer.tv_sec = 30;
 	timer.tv_usec=0;
 	forkstatus =0;
 
@@ -112,7 +113,7 @@ int main(int argc, char *argv[]){
 	FD_SET(sock,&fd_active);
 	read_fd_set=fd_active;
 	pthread_t thread;
-
+	fprintf(fp, "-START- Initializing Chat Room\n");
 	for(;;){
 
 
