@@ -65,22 +65,28 @@ void InitializeSignalHandlers(){
 void shutdownClient(int signal){
 
 	//free all the malloced users close the socket
-	int i;
-	for(i = 0; i < MaxUsernames; i++){
-		
-		if(listUsers[i] == NULL){
-			continue;
+	userLink * currentLink = firstLink;
+	userLink * nextLink;
+
+	for(;;){
+		if(currentLink == NULL){
+			break;
 		}
 
-		free(listUsers[i]);
+		nextLink = currentLink->next;
+
+		free(currentLink->user);
+		// currentLink->user = NULL;
+		free(currentLink);
+
+		currentLink = nextLink;
 	}
 
 	printf("Exiting chatroom. Goodbye\n");
 
 	//Leave it in the state we got it
 	sigaction(SIGINT, &priorSigHandler, 0);
-	
-	// close(socket);
+	close(socketFD);
 	exit(1);
 }
 
@@ -325,17 +331,26 @@ void userAdded(char* username, int size){
 	User->len = size;
 	memcpy(&(User->username), username, size); 
 	User->username[size] = '\0';
+
+	userLink* link = malloc(sizeof(userLink));
+	link->user = User;
 	
 	pthread_rwlock_wrlock(&lock);
-	int i;
-	for(i = 0; i < MaxUsernames ; i++){
-	
-		//Look through our list and find the first free spot
-		if(listUsers[i] == 0){
-			listUsers[i] = User;
-			printf(" %s has entered the chat room\n", User->username);
-			break;
+
+	if(firstLink == NULL){
+		firstLink = link;
+		link->next = NULL;
+		printf(" %s has enter the chat room\n", link->user->username);
+	}
+	else{
+		
+		userLink* currentLink = firstLink;
+		while(currentLink->next != NULL){
+			currentLink = currentLink->next;
 		}
+		
+		currentLink->next = link;
+		printf(" %s has enter the chat room\n", link->user->username);
 	}
 
 	pthread_rwlock_unlock(&lock);
@@ -344,19 +359,36 @@ void userAdded(char* username, int size){
 void userRemoved(char* userName, int size){
 
 	pthread_rwlock_wrlock(&lock);
-	int i;
-	for(i = 0; i< MaxUsernames; i++){
-		
-		if(listUsers[i] == 0){
-			continue;
-		}
 
-		if(strncmp(listUsers[i]->username, userName, size) == 0){
-			printf(" %s has left the chat room\n", listUsers[i]->username);
-			free(listUsers[i]);
-			listUsers[i] = 0;
+	userLink* priorLink = firstLink;
+	userLink* currentLink = firstLink;
+	for(;;){
+		
+		if(currentLink == NULL){
+			printf("Unable to find username to remove\n");
 			break;
 		}
+
+		//Look for the username of the same name and remove it
+		if(strncmp(currentLink->user->username, userName, size) == 0){
+			userLink* removedLink = currentLink;
+			printf(" %s has left the chat room\n", removedLink->user->username);
+			
+			if(priorLink != currentLink){
+				priorLink->next = currentLink->next;
+			}
+			//Removing the first user we need a new head
+			else{
+				firstLink = currentLink->next;
+			}
+
+			free(removedLink->user);
+			free(removedLink);
+			break;
+		}
+
+		priorLink = currentLink;
+		currentLink = currentLink->next;
 	}
 
 	pthread_rwlock_unlock(&lock);
@@ -366,16 +398,12 @@ void printUsernames(){
 	
 	pthread_rwlock_rdlock(&lock);
 	
-	int i;
-	for(i = 0; i < MaxUsernames; i++){
-		
-		if(listUsers[i] == NULL){
-			continue;
-		}
-
-		printf("%s\n", listUsers[i]->username);
+	userLink * currentLink = firstLink;
+	while(currentLink != NULL){
+	
+		printf("%s\n", currentLink->user->username);
+		currentLink = currentLink->next;
 	}
-
 	pthread_rwlock_unlock(&lock);
 }
 
