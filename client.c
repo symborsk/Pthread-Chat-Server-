@@ -169,10 +169,10 @@ void handShake(){
 		exit(1);
 	}
 
-	unsigned char numberOfUsers;
-	recievedBytes(socketFD, &numberOfUsers, sizeof(numberOfUsers));
+	uint16_t numberOfUsersNetwork;
+	recievedBytes(socketFD, (unsigned char *)&numberOfUsersNetwork, sizeof(numberOfUsersNetwork));
 	
-	uint16_t intUsers  = (uint16_t)numberOfUsers;
+	uint16_t intUsers  = ntohs(numberOfUsersNetwork);
 	
 	readMultipleUsernames(intUsers);
 
