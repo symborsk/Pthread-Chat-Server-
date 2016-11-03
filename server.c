@@ -203,11 +203,10 @@ void * handShake(void* u){
 	outarray[0] = (unsigned char) (holdingNumber);
 	holdingNumber = 0xa7;
 	outarray[1] = (unsigned char) (holdingNumber);
-	//send (currentUser->fd, &outarray, sizeof (outarray),0);
 	sendBytes(currentUser,outarray,2);
 
-	unsigned char numberOfUsers = (unsigned char)numberofclients; 
-	send (currentUser->fd,&numberOfUsers, sizeof(numberOfUsers),0);
+	uint16_t hostToNet=htons(numberofclients);
+	sendBytes(currentUser,(unsigned char*)&hostToNet,2);
 	
 	sendCurrentUserNames(currentUser);
 	addUser(currentUser); 
