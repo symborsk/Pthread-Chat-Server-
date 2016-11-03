@@ -1,74 +1,69 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <pthread.h>
+#include "server.h"
+// #include <sys/types.h>
+// #include <sys/socket.h>
+// #include <netinet/in.h>
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <unistd.h>
+// #include <string.h>
+// #include <errno.h>
+// #include <sys/time.h>
+// #include <sys/mman.h>
+// #include <unistd.h>
+// #include <sys/stat.h>
+// #include <fcntl.h>
+// #include <signal.h>
+// #include <pthread.h>
 
 
-#define MAXSIZE 20
-#define BUFFSIZE 255
+// #define MAXSIZE 20
+// #define BUFFSIZE 255
 
 
 
-pthread_rwlock_t lock=PTHREAD_RWLOCK_INITIALIZER;
-typedef struct users{
-	int fd;
-	uint16_t length;
-	unsigned char usernamestr [MAXSIZE];
-} user;
+// pthread_rwlock_t lock=PTHREAD_RWLOCK_INITIALIZER;
+// typedef struct users{
+// 	int fd;
+// 	uint16_t length;
+// 	unsigned char usernamestr [MAXSIZE];
+// } user;
 
-void * handShake(void*  u);
-int IsUserNameUnique(unsigned char *name ,int  size);
-uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]);
-void sendCurrentUserNames(user * targetUser);
-void getUsername(void* u);
-void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
-//void * recieveMessage(void* socket);
-void removeUser(user* u);
-void addUser(user* u);
-void chat(user* u);
-void sendChatMessage(char* p,  uint16_t size, user * sender);
-void sendJoinMessage(char* p, uint16_t size);
-void sendExitMessage(char* p, uint16_t size);
-void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
-void sendJoin(user * currentUser);
-void sendExit(user * currentUser);
-void writeToLogJoin(user *u);
-void writeToLogExit(user *u);
-void exitAll();
+// void * handShake(void*  u);
+// int IsUserNameUnique(unsigned char *name ,int  size);
+// uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]);
+// void sendCurrentUserNames(user * targetUser);
+// void getUsername(void* u);
+// void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
+// //void * recieveMessage(void* socket);
+// void removeUser(user* u);
+// void addUser(user* u);
+// void chat(user* u);
+// void sendChatMessage(char* p,  uint16_t size, user * sender);
+// void sendJoinMessage(char* p, uint16_t size);
+// void sendExitMessage(char* p, uint16_t size);
+// void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
+// void sendJoin(user * currentUser);
+// void sendExit(user * currentUser);
+// void writeToLogJoin(user *u);
+// void writeToLogExit(user *u);
+// void exitAll();
 
-struct sigaction priorSigHandler;
-struct sigaction currentSigHandler;
-struct sigaction priorSigHandler1;
-struct sigaction currentSigHandler1;
+// struct sigaction priorSigHandler;
+// struct sigaction currentSigHandler;
 
-int numberofclients;
-int fd;
-pid_t forkstatus;
-pid_t sid;
-user * listofusers[MAXSIZE];
-FILE *fp; 
-// volatile user* sharedMem=listofusers;
+// int numberofclients;
+// int fd;
+// pid_t forkstatus;
+// pid_t sid;
+// user * listofusers[MAXSIZE];
+// FILE *fp; 
+
 
 void sigHandler(int sig){
 	exitAll();
 	sigaction(SIGTERM, &priorSigHandler, 0);
 	fclose(fp);
 	exit(1);
-}
-
-void otherSigHandler(int sig){
-	
 }
 
 int main(int argc, char *argv[]){
@@ -80,17 +75,11 @@ int main(int argc, char *argv[]){
 	
 	sid = 0;
 	char cwd[1024];
-   	if (getcwd(cwd, sizeof(cwd)) != NULL)
+   	if (getcwd(cwd, sizeof(cwd)) == NULL)
    	{
-   		printf("Starting server with log file in:\n");
-       fprintf(stdout, "Current working dir: %s\n", cwd);
-       printf("\n");
+   		perror("getcwd() error");
    	}
-   	else
-   	{
-       perror("getcwd() error");
-   	}
-  
+ 
 
 	//daemonizing
 	forkstatus=fork();
@@ -137,15 +126,11 @@ int main(int argc, char *argv[]){
 	currentSigHandler.sa_flags = 0;
  	sigaction(SIGTERM, &currentSigHandler, &priorSigHandler);
 
- 	currentSigHandler1.sa_handler = otherSigHandler;
-	sigemptyset(&currentSigHandler1.sa_mask);
-	currentSigHandler1.sa_flags = 0;
- 	sigaction(SIGINT, &currentSigHandler1, &priorSigHandler1);
 
 	//close standard fds
-    // close(STDIN_FILENO);
-    // close(STDOUT_FILENO);
-    // close(STDERR_FILENO);	
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);	
 
 	numberofclients=0;
 	
@@ -201,11 +186,11 @@ int main(int argc, char *argv[]){
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
 
 					if(setsockopt(snew,SOL_SOCKET,SO_RCVTIMEO, (char *)&timer, sizeof(timer))<0){
-						fprintf(fp, "%s\n",strerror(errno) );
+						fprintf(fp, "-ERROR-Time out cannot be set for socket: %s\n",strerror(errno) );
 					}
 					if (snew < 0) 
 					{
-						fprintf(fp, "%s\n",strerror(errno) );
+						fprintf(fp, "-ERROR-Socket could not be created for client: %s\n",strerror(errno) );
 						continue;
 					}
 					
@@ -460,7 +445,7 @@ void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 		if(sentBytes <= 0){
 			
 			if(sentBytes == -1)
-				fprintf(fp, "Failed in sending: %s\n",strerror(errno));
+				fprintf(fp, "-ERROR-Failed in sending: %s\n",strerror(errno));
 			
 			closeSocket(currentUser);			
 		}
@@ -484,7 +469,7 @@ void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 		if(recievedBytes <= 0){
 			
 			if(recievedBytes == -1)
-				fprintf(fp, "Failed in receiving: %s\n",strerror(errno));
+				fprintf(fp, "-ERROR-Failed in receiving: %s\n",strerror(errno));
 
 			closeSocket(currentUser);			
 		}
