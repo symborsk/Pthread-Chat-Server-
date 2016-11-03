@@ -1,68 +1,12 @@
 #include "server.h"
-// #include <sys/types.h>
-// #include <sys/socket.h>
-// #include <netinet/in.h>
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <unistd.h>
-// #include <string.h>
-// #include <errno.h>
-// #include <sys/time.h>
-// #include <sys/mman.h>
-// #include <unistd.h>
-// #include <sys/stat.h>
-// #include <fcntl.h>
-// #include <signal.h>
-// #include <pthread.h>
-
-
-// #define MAXSIZE 20
-// #define BUFFSIZE 255
-
-
-
-// pthread_rwlock_t lock=PTHREAD_RWLOCK_INITIALIZER;
-// typedef struct users{
-// 	int fd;
-// 	uint16_t length;
-// 	unsigned char usernamestr [MAXSIZE];
-// } user;
-
-// void * handShake(void*  u);
-// int IsUserNameUnique(unsigned char *name ,int  size);
-// uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]);
-// void sendCurrentUserNames(user * targetUser);
-// void getUsername(void* u);
-// void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
-// //void * recieveMessage(void* socket);
-// void removeUser(user* u);
-// void addUser(user* u);
-// void chat(user* u);
-// void sendChatMessage(char* p,  uint16_t size, user * sender);
-// void sendJoinMessage(char* p, uint16_t size);
-// void sendExitMessage(char* p, uint16_t size);
-// void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
-// void sendJoin(user * currentUser);
-// void sendExit(user * currentUser);
-// void writeToLogJoin(user *u);
-// void writeToLogExit(user *u);
-// void exitAll();
-
-// struct sigaction priorSigHandler;
-// struct sigaction currentSigHandler;
-
-// int numberofclients;
-// int fd;
-// pid_t forkstatus;
-// pid_t sid;
-// user * listofusers[MAXSIZE];
-// FILE *fp; 
 
 
 void sigHandler(int sig){
+	fprintf(fp, "-CLOSING- SIGTERM recieved\n");
 	exitAll();
 	sigaction(SIGTERM, &priorSigHandler, 0);
-	fclose(fp);
+	fprintf(fp, "-SHUTTING DOWN- All users exited successfully\n");
+	fclose(fp);	
 	exit(1);
 }
 
@@ -100,7 +44,7 @@ int main(int argc, char *argv[]){
 	
     if ((chdir(cwd)) < 0) {
       
-      printf("Could not change working directory to /\n");
+      printf("Could not change working directory\n");
       exit(1);
     }
 
@@ -149,7 +93,7 @@ int main(int argc, char *argv[]){
 	
 	sock = socket (AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
-		perror ("Server: cannot open master socket");
+		fprintf(fp, "-ERROR- Could not create socket: %s\n",strerror(errno));
 		exit (1);
 	}
 
@@ -159,7 +103,7 @@ int main(int argc, char *argv[]){
 	master.sin_port = htons (portnumber);
 
 	if (bind (sock, (struct sockaddr*) &master, sizeof (master))) {
-		perror ("Server: cannot bind master socket");
+		fprintf(fp, "-ERROR- Could not bind to socket: %s\n",strerror(errno));
 		exit (1);
 	}
 
