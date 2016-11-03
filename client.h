@@ -24,9 +24,9 @@ typedef struct users{
 	unsigned char username[MaxUsernameLength];
 } user;
 
-typedef struct userLinks{
+typedef struct link{
 	user* user;
-	struct userLinks* next;
+	struct link* next;
 } userLink;
 
 //Thread function for recieving
