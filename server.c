@@ -484,10 +484,7 @@ int IsUserNameUnique(unsigned char *name ,int  size){
 
 		// This basically compares the longest username and sees if they are the same
 		if(strncmp(listofusers[i]->usernamestr, name, ( size > listofusers[i]->length)? size:listofusers[i]->length) == 0){
-				// close(u->fd);
-				// free(u);
-				// pthread_rwlock_unlock(&lock);
-				// pthread_exit(NULL);
+				fprintf(fp, "-ERROR- New user tried to use existing username %s\n", name);
 			ret = 0;
 			break;
 		}
