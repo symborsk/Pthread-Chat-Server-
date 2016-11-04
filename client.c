@@ -76,7 +76,6 @@ void shutdownClient(int signal){
 		nextLink = currentLink->next;
 
 		free(currentLink->user);
-		// currentLink->user = NULL;
 		free(currentLink);
 
 		currentLink = nextLink;
@@ -148,7 +147,7 @@ void * recieveHandler(void * unUsed){
 
 		//Something weird happened..... shouldnt happen unless disconect 
 		else{
-			printf("Server sent uknown code");
+			printf("Server sent uknown code: %u\n", code);
 			shutdownClient(0);
 		}
 	}
@@ -177,6 +176,7 @@ void handShake(){
 
 	uint16_t numberOfUsersNetwork;
 	recievedBytes(socketFD, (unsigned char *)&numberOfUsersNetwork, sizeof(numberOfUsersNetwork));
+
 	
 	uint16_t intUsers  = ntohs(numberOfUsersNetwork);
 	
@@ -310,6 +310,7 @@ void chat(){
 		fgets(buff, BufferSize, stdin);
 
 		if(strncmp(buff, ".usernames", 10) == 0){
+			sendKeepAliveMessage();
 			printUsernames();
 			continue;
 		}
@@ -334,30 +335,32 @@ void userAdded(char* username, int size){
 
 	userLink* link = malloc(sizeof(userLink));
 	link->user = User;
-	
+	link->next = NULL;
+
 	pthread_rwlock_wrlock(&lock);
 
 	if(firstLink == NULL){
-		firstLink = link;
-		link->next = NULL;
-		printf(" %s has enter the chat room\n", link->user->username);
+		
+		firstLink = link;	
 	}
+
 	else{
 		
 		userLink* currentLink = firstLink;
 		while(currentLink->next != NULL){
 			currentLink = currentLink->next;
 		}
-		
 		currentLink->next = link;
-		printf(" %s has enter the chat room\n", link->user->username);
 	}
+
+	printf(" %s has enter the chat room\n", link->user->username);
 
 	pthread_rwlock_unlock(&lock);
 }
 
 void userRemoved(char* userName, int size){
 
+	printf("Suppose to remove username %s\n", userName);
 	pthread_rwlock_wrlock(&lock);
 
 	userLink* priorLink = firstLink;
@@ -375,10 +378,13 @@ void userRemoved(char* userName, int size){
 			printf(" %s has left the chat room\n", removedLink->user->username);
 			
 			if(priorLink != currentLink){
+				
 				priorLink->next = currentLink->next;
+
 			}
 			//Removing the first user we need a new head
 			else{
+				
 				firstLink = currentLink->next;
 			}
 
