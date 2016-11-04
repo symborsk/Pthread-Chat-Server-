@@ -8,6 +8,7 @@ void sigHandler(int sig){
 	fprintf(fp, "-SHUTTING DOWN- All users exited successfully\n");
 	fprintf(fp, "Terminating...\n");
 	fclose(fp);	
+	close(sock);
 	exit(1);
 }
 
@@ -27,7 +28,7 @@ int main(int argc, char *argv[]){
  
 
 	//daemonizing
-	forkstatus=fork();
+	int forkstatus=fork();
 	if(forkstatus!=0){
 		
 		exit(1);
@@ -86,9 +87,7 @@ int main(int argc, char *argv[]){
 	timer.tv_usec=0;
 	forkstatus =0;
 
-	int	sock, snew, fromlength, number, outnum;
-	uint16_t inlength,usernameLength;
-	uint32_t inusername;
+	int	snew, fromlength;
 	struct	sockaddr_in	master, from;
 	
 	
@@ -142,7 +141,6 @@ int main(int argc, char *argv[]){
 					user* newUser = (user *)malloc(sizeof(user));
 					memset(newUser->usernamestr,'\0',MAXSIZE);
 					newUser->fd = snew;
-					newUser->length = 0;
 					
 					//Create a listener thread
 					int ret = pthread_create(&thread, NULL, &handShake, (void*)newUser);
@@ -161,37 +159,65 @@ int main(int argc, char *argv[]){
 
 void addUser(user* u){
 	
-	pthread_rwlock_wrlock(&lock);
-	int i;
-	for(i=0;i<MAXSIZE;i++){
-		
 
-		if(listofusers[i] == NULL){	
-			
-			listofusers[i] = u;
-			break;
-		}
-	}
+	userLink* link = malloc(sizeof(userLink));
+	link->user = u;
+	link->next = NULL;
+
+	pthread_rwlock_wrlock(&lock);
+	numberofclients++;
 	
+	if(firstLink ==NULL){
+		firstLink = link;
+	}
+
+	else{
+		
+		userLink * currentLink = firstLink;
+		while(currentLink->next != NULL){
+			currentLink =currentLink->next;
+		}
+
+		currentLink->next = link;
+	}
+
 	pthread_rwlock_unlock(&lock);
 }
 
 void removeUser(user * u){
 	
-	int i;
+	
 	pthread_rwlock_wrlock(&lock);
-	for(i = 0; i< MAXSIZE ; i++){
-		
-		if(listofusers[i] == NULL){
-			continue;
-		}
-
-		if(listofusers[i]->fd == u->fd){
-			listofusers[i] = NULL;
-			numberofclients--;
+	
+	userLink* priorLink = firstLink;
+	userLink* currentLink = firstLink;
+	for(;;){
+		if(currentLink == NULL){
+			fprintf(fp, "-ERROR- Unable to find FD to remove\n" );
 			break;
 		}
+		
+		//look for the fd of the same user and remove it
+		if(currentLink->user->fd == u->fd){
+			userLink* removedLink= currentLink;
+			
+			if(priorLink != currentLink){
+				priorLink->next= currentLink->next;
+			}
+			// removing the first user, need new first pointer
+			else{
+				firstLink= firstLink->next;
+			}
+
+			free(removedLink);
+			numberofclients --;
+			break;
+		}
+
+		priorLink = currentLink;
+		currentLink = currentLink->next;
 	}
+
 	pthread_rwlock_unlock(&lock);
 }
 
@@ -210,59 +236,40 @@ void * handShake(void* u){
 	sendBytes(currentUser,(unsigned char*)&hostToNet,2);
 	
 	sendCurrentUserNames(currentUser);
-	addUser(currentUser); 
-	getUsername(currentUser);
-	sendJoin(currentUser);
-	numberofclients++;
-	chat(currentUser);
 
+	getUsername(currentUser);
+
+	addUser(currentUser); 
+
+	sendJoin(currentUser);
+
+	chat(currentUser);
 }	
 
 void sendCurrentUserNames(user * targetUser){
-	int i;
+	
 	pthread_rwlock_rdlock(&lock);
 
-	for(i=0;i <MAXSIZE;i++){
-
-		user* currentUser = listofusers[i];
-		
-		// If the username length is zero the user has not been fully added yet and we do not want to include him
-		// in our current users
-		if(currentUser == NULL || listofusers[i]->length == 0){
-			continue;
-		}
+	userLink* currentLink = firstLink;
+	user* currentUser;
+	while(currentLink != NULL){
+		currentUser = currentLink->user;
 
 		unsigned char outLength = (unsigned char)currentUser->length;
-		
+
 		sendBytes(targetUser, &outLength, 1);
-		sendBytes(targetUser,currentUser->usernamestr,currentUser->length);
-		
+		sendBytes(targetUser, currentUser->usernamestr, currentUser->length); 
+
+		currentLink = currentLink->next;
 	}
 
 	pthread_rwlock_unlock(&lock);
 }
 
-uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]){
-	uint16_t i;
-	for(i = 0; i < MAXSIZE; i++){
-
-		if(userName[i] == '\0')
-			break;
-	}
-
-	return i + 1;
-}
-
-void closeSocket(user * u){
+void closeSocket(user* u){
 	
-
 	removeUser(u);
-	
-	//Only send an exit code if the user has been fully added
-	if(u->length != 0){
-		sendExit(u);
-	}
-
+	sendExit(u);
 	close(u->fd);
 	free(u);
 	pthread_exit(NULL);
@@ -272,7 +279,6 @@ void getUsername(void* u){
 	user* currentUser = (user *) u;
 	
 	unsigned char sizeOfUsername;
-
 	recievedBytes(currentUser,(unsigned char*) &sizeOfUsername, 1);
 	
 	uint16_t size = (uint16_t) sizeOfUsername;
@@ -281,11 +287,13 @@ void getUsername(void* u){
 	recievedBytes(currentUser, buff, sizeOfUsername);
 
 	//Tell us if it unique
-	if(!IsUserNameUnique(buff, size)){
-		closeSocket(u);
+	if(! IsUserNameUnique(buff, size) ){
+		close(currentUser->fd);
+		free(currentUser);
+		pthread_exit(NULL);
 	}
 	
-	memcpy(currentUser->usernamestr, (void *)buff, sizeof(buff));
+	memcpy(currentUser->usernamestr, (void *)buff, size);
 	
 	currentUser->length= size;
 }
@@ -318,60 +326,67 @@ void chat(user * u){
 void sendChatMessage(char* p,  uint16_t size, user * sender){
 
 	pthread_rwlock_rdlock(&lock);
-	int i;
-	for(i = 0; i < MAXSIZE; i++){
-		user * currentUser  = listofusers[i];
-		
-		if(currentUser != NULL){
-			unsigned char type = 0x0;
-			uint16_t hostToNet=htons(size);
-	
-			sendBytes(currentUser,&type,1);
-			sendBytes(currentUser,(unsigned char *)&(sender->length),1);
-			sendBytes(currentUser,sender->usernamestr,sender->length);
-			sendBytes(currentUser,(unsigned char*)&hostToNet,2);
-			sendBytes(currentUser,p,size);
-		}
+
+	userLink * currentLink =firstLink;
+	user * currentUser;
+	while(currentLink!=NULL){
+		currentUser= currentLink->user;
+		unsigned char type = 0x0;
+		uint16_t hostToNet=htons(size);
+
+		sendBytes(currentUser,&type,1);
+		sendBytes(currentUser,(unsigned char *)&(sender->length),1);
+		sendBytes(currentUser,sender->usernamestr,sender->length);
+		sendBytes(currentUser,(unsigned char*)&hostToNet,2);
+		sendBytes(currentUser,p,size);
+
+		currentLink = currentLink->next;
 	}
+
 	pthread_rwlock_unlock(&lock);
 }
 
 void sendJoinMessage(char* p, uint16_t size){
 
-	pthread_rwlock_rdlock(&lock);
 	
-	int i;
-	for(i = 0; i < MAXSIZE; i++){
-		user * currentUser  = listofusers[i];
-		
-		if(currentUser != NULL){
-			unsigned char type = 0x1;
-			unsigned char charSize = (unsigned char) size;
-			
-			sendBytes(currentUser,&type,1);
-			sendBytes(currentUser, &charSize, 1);
-			sendBytes(currentUser, p ,size);
-		}
-	}
 
+	pthread_rwlock_rdlock(&lock);
+
+	userLink * currentLink = firstLink;
+	user* currentUser;
+
+	while(currentLink != NULL){
+		currentUser = currentLink->user;
+		printf("%s\n", currentUser->usernamestr);
+		
+		unsigned char type = 0x1;
+		unsigned char charSize = (unsigned char) size;
+		
+		
+		sendBytes(currentUser, &type,1);		
+		sendBytes(currentUser, &charSize, 1);		
+		sendBytes(currentUser, p, size);
+		currentLink = currentLink->next;
+	}
+	
 	pthread_rwlock_unlock(&lock);
 }
 
 void sendExitMessage(char* p, uint16_t size){
 	pthread_rwlock_rdlock(&lock);
 	
-	int i;
-	for(i = 0; i < MAXSIZE; i++){
-		user * currentUser  = listofusers[i];
-		
-		if(currentUser != NULL){
-			unsigned char type = 0x2;
-			unsigned char charSize = (unsigned char)size;
 
-			sendBytes(currentUser,&type, 1);
-			sendBytes(currentUser, &charSize, 1);
-			sendBytes(currentUser, p, size);
-		}
+	userLink * currentLink = firstLink;
+	user* currentUser;
+	while(currentLink!=NULL){
+		currentUser=currentLink->user;
+		unsigned char type = 0x2;
+		unsigned char charSize = (unsigned char) size;
+		
+		sendBytes(currentUser,&type,1);
+		sendBytes(currentUser, &charSize, 1);
+		sendBytes(currentUser, p ,size);
+		currentLink=currentLink->next;
 	}
 		
 	pthread_rwlock_unlock(&lock);
@@ -400,7 +415,7 @@ void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 	}
 }
 
-void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
+void recievedBytes(user* currentUser, unsigned char* buff, uint16_t numBytes){
 
 	int sock = currentUser->fd;
 
@@ -432,31 +447,34 @@ void sendJoin(user * currentUser){
 
 void sendExit(user * currentUser){
 
-	sendExitMessage(currentUser->usernamestr,currentUser->length);
+	sendExitMessage( currentUser->usernamestr, currentUser->length);
 	writeToLogExit(currentUser);
 }
 
 void exitAll(){
 	int i;
 	pthread_rwlock_wrlock(&lock);
-	for(i=0;i<MAXSIZE;i++){
-		user * u = listofusers[i];
-		if(u!=NULL){
-			writeToLogExit(u);
-			close(u->fd);
-			free(u);
-		}
-		
-	}
-	pthread_rwlock_unlock(&lock);
+	userLink* currentLink=firstLink;
+	userLink* nextLink;
 	
-}
-void writeToLogJoin(user *u){
-	char line[BUFFSIZE];
+	while(currentLink != NULL){
+		nextLink = currentLink->next;
 
-	// char usernametemp[BUFFSIZE];
-	// memset(usernametemp,'\0',u->length);
-	// strncpy
+		writeToLogExit(currentLink->user);
+		close(currentLink->user->fd);
+
+		
+		free(currentLink->user);
+		free(currentLink);
+
+		currentLink = nextLink;
+	}	
+	pthread_rwlock_unlock(&lock);	
+}
+
+void writeToLogJoin(user *u){
+	
+	char line[BUFFSIZE];
 	memset(line,'\0',BUFFSIZE);
 	strncpy(line,u->usernamestr,u->length);
 	strcat(line," joined");
@@ -472,22 +490,23 @@ void writeToLogExit(user *u){
 }
 
 int IsUserNameUnique(unsigned char *name ,int  size){
+	printf("Acquiring lock unique username\n");
 	pthread_rwlock_rdlock(&lock);
 	
 	int ret = 1;
-	int i;
-	for(i = 0; i< MAXSIZE ; i++){
-		
-		if(listofusers[i] == NULL){
-			continue;
-		}
 
-		// This basically compares the longest username and sees if they are the same
-		if(strncmp(listofusers[i]->usernamestr, name, ( size > listofusers[i]->length)? size:listofusers[i]->length) == 0){
-				fprintf(fp, "-ERROR- New user tried to use existing username %s\n", name);
+	userLink* currentLink =firstLink;
+	user* currentUser;
+	while(currentLink!=NULL){
+		currentUser=currentLink->user;
+		
+		if(strncmp(currentUser->usernamestr, name, ( size > currentUser->length)? size:currentUser->length) == 0){
+			fprintf(fp, "-ERROR- New user tried to use existing username %s\n", name);
 			ret = 0;
 			break;
 		}
+
+		currentLink=currentLink->next;
 	}
 
 	pthread_rwlock_unlock(&lock);

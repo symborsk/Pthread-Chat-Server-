@@ -30,9 +30,14 @@ typedef struct users{
 	unsigned char usernamestr [MAXSIZE];
 } user;
 
+typedef struct link{
+	user* user;
+	struct link* next;
+} userLink;
+
+
 void * handShake(void*  u);
 int IsUserNameUnique(unsigned char *name ,int  size);
-uint16_t lengthOfUsername(unsigned char userName[MAXSIZE]);
 void sendCurrentUserNames(user * targetUser);
 void getUsername(void* u);
 void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
@@ -55,9 +60,9 @@ struct sigaction currentSigHandler;
 
 uint16_t numberofclients;
 int fd;
-pid_t forkstatus;
+int sock;
 pid_t sid;
-user * listofusers[MAXSIZE];
+userLink* firstLink;
 FILE *fp; 
 
 #endif
