@@ -1,5 +1,5 @@
-#ifndef CLIENT
-#define CLIENT
+#ifndef SERVER
+#define SERVER
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -39,9 +39,8 @@ typedef struct link{
 void * handShake(void*  u);
 int IsUserNameUnique(unsigned char *name ,int  size);
 void sendCurrentUserNames(user * targetUser);
-void getUsername(void* u);
+void getUsername(user* currentUser);
 void recievedBytes(user * currentUser, unsigned char* buff, uint16_t numBytes);
-//void * recieveMessage(void* socket);
 void removeUser(user* u);
 void addUser(user* u);
 void chat(user* u);

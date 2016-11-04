@@ -1,6 +1,7 @@
 #include "server.h"
 
 
+//Termination sig handle that closes all sockets
 void sigHandler(int sig){
 	fprintf(fp, "-CLOSING- SIGTERM recieved\n");
 	exitAll();
@@ -116,8 +117,9 @@ int main(int argc, char *argv[]){
 	for(;;){
 
 
-		if(select(FD_SETSIZE,&read_fd_set,NULL,NULL,NULL)<0){
-			perror("select()");
+		//Wait on someone trying to connect before going forward
+		if(select(FD_SETSIZE,&read_fd_set, NULL, NULL, NULL)<0){
+			fprintf(fp, "-ERROR- Could not establish select statement %s\n", strerror(errno));
 			exit(1);
 		}
 		
@@ -157,16 +159,17 @@ int main(int argc, char *argv[]){
 	}
 }
 
+//Add a user to our linked list
+//This data is shared by multiple threads so we need a lock for adding to this data
 void addUser(user* u){
 	
-
-	userLink* link = malloc(sizeof(userLink));
+	userLink* link = malloc(sizeof(userLink));	
 	link->user = u;
 	link->next = NULL;
 
 	pthread_rwlock_wrlock(&lock);
-	numberofclients++;
 	
+	numberofclients++;
 	if(firstLink ==NULL){
 		firstLink = link;
 	}
@@ -184,8 +187,9 @@ void addUser(user* u){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Remove a user from our linked list
+// We need a lock to remove from shared data
 void removeUser(user * u){
-	
 	
 	pthread_rwlock_wrlock(&lock);
 	
@@ -221,6 +225,7 @@ void removeUser(user * u){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Handshake protocol between the client and server
 void * handShake(void* u){
  	user* currentUser = (user *) u;
  	uint16_t outnum=0;
@@ -236,16 +241,14 @@ void * handShake(void* u){
 	sendBytes(currentUser,(unsigned char*)&hostToNet,2);
 	
 	sendCurrentUserNames(currentUser);
-
 	getUsername(currentUser);
-
 	addUser(currentUser); 
-
 	sendJoin(currentUser);
-
 	chat(currentUser);
 }	
 
+//send to target user all the current users in the chat room
+//read lock is needed to read this shared data(only a read lock though)
 void sendCurrentUserNames(user * targetUser){
 	
 	pthread_rwlock_rdlock(&lock);
@@ -266,17 +269,20 @@ void sendCurrentUserNames(user * targetUser){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Protocol for removing a user and sending out exit message to all other users
 void closeSocket(user* u){
 	
 	removeUser(u);
 	sendExit(u);
 	close(u->fd);
+
+	//We free the link of the link list in removeUser so we dont need to free it here
 	free(u);
 	pthread_exit(NULL);
 }
 
-void getUsername(void* u){
-	user* currentUser = (user *) u;
+// Get the username from the user attempting to connect and check if it is unique
+void getUsername(user* currentUser){
 	
 	unsigned char sizeOfUsername;
 	recievedBytes(currentUser,(unsigned char*) &sizeOfUsername, 1);
@@ -293,11 +299,11 @@ void getUsername(void* u){
 		pthread_exit(NULL);
 	}
 	
-	memcpy(currentUser->usernamestr, (void *)buff, size);
-	
+	memcpy(currentUser->usernamestr, (void *)buff, size);	
 	currentUser->length= size;
 }
 
+//This is the endless listening function for a thread that continually listens for client message
 void chat(user * u){
 	user * currentUser = u;
 
@@ -322,8 +328,11 @@ void chat(user * u){
 		memset(buffMessage, '\0', BUFFSIZE);
 	}
 }
- 
-void sendChatMessage(char* p,  uint16_t size, user * sender){
+
+//Send message of type 0x00 to all users from sender 
+//Once again we need a lock to read the link list shared data
+// p is message
+void sendChatMessage(char* p,  uint16_t size, user* sender){
 
 	pthread_rwlock_rdlock(&lock);
 
@@ -346,10 +355,8 @@ void sendChatMessage(char* p,  uint16_t size, user * sender){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Send join message 0x01 to all users message username is p
 void sendJoinMessage(char* p, uint16_t size){
-
-	
-
 	pthread_rwlock_rdlock(&lock);
 
 	userLink * currentLink = firstLink;
@@ -357,7 +364,6 @@ void sendJoinMessage(char* p, uint16_t size){
 
 	while(currentLink != NULL){
 		currentUser = currentLink->user;
-		printf("%s\n", currentUser->usernamestr);
 		
 		unsigned char type = 0x1;
 		unsigned char charSize = (unsigned char) size;
@@ -372,10 +378,10 @@ void sendJoinMessage(char* p, uint16_t size){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Sending exit message 0x02 to all users username is p
 void sendExitMessage(char* p, uint16_t size){
 	pthread_rwlock_rdlock(&lock);
 	
-
 	userLink * currentLink = firstLink;
 	user* currentUser;
 	while(currentLink!=NULL){
@@ -390,9 +396,9 @@ void sendExitMessage(char* p, uint16_t size){
 	}
 		
 	pthread_rwlock_unlock(&lock);
-	
 }
 
+//Generic send sendBytes to the current user
 void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 	int sock =currentUser->fd;
 
@@ -415,6 +421,7 @@ void sendBytes(user * currentUser, unsigned char* buff, uint16_t numBytes){
 	}
 }
 
+//Generic recieve byte from the currentUser
 void recievedBytes(user* currentUser, unsigned char* buff, uint16_t numBytes){
 
 	int sock = currentUser->fd;
@@ -439,20 +446,23 @@ void recievedBytes(user* currentUser, unsigned char* buff, uint16_t numBytes){
 	}
 }
 
+//Sends the join a logs the message
 void sendJoin(user * currentUser){
 	
 	sendJoinMessage(currentUser->usernamestr,currentUser->length);
 	writeToLogJoin(currentUser);
 }
 
+//Sends the exit and logs the message
 void sendExit(user * currentUser){
 
 	sendExitMessage( currentUser->usernamestr, currentUser->length);
 	writeToLogExit(currentUser);
 }
 
+// server is shutting down kick out all the current users
 void exitAll(){
-	int i;
+
 	pthread_rwlock_wrlock(&lock);
 	userLink* currentLink=firstLink;
 	userLink* nextLink;
@@ -472,6 +482,7 @@ void exitAll(){
 	pthread_rwlock_unlock(&lock);	
 }
 
+//Wrtie to the log about a join
 void writeToLogJoin(user *u){
 	
 	char line[BUFFSIZE];
@@ -481,6 +492,7 @@ void writeToLogJoin(user *u){
 	fprintf(fp, "%s\n",line );
 }
 
+//write to log about an exit
 void writeToLogExit(user *u){
 	char line[BUFFSIZE];
 	memset(line,'\0',BUFFSIZE);
@@ -489,6 +501,7 @@ void writeToLogExit(user *u){
 	fprintf(fp, "%s\n",line );
 }
 
+//Helper function that tells us if the username is already inside our chatroom
 int IsUserNameUnique(unsigned char *name ,int  size){
 	printf("Acquiring lock unique username\n");
 	pthread_rwlock_rdlock(&lock);

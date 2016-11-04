@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
 	chat();	
 }
 
+//Signal handler for ctlr C
 void InitializeSignalHandlers(){
 
 	currentSigHandler.sa_handler = shutdownClient;
@@ -62,6 +63,7 @@ void InitializeSignalHandlers(){
 	sigaction(SIGINT, &currentSigHandler, &priorSigHandler);
 }
 
+//Clean up memory and close socket
 void shutdownClient(int signal){
 
 	//free all the malloced users close the socket
@@ -89,6 +91,7 @@ void shutdownClient(int signal){
 	exit(1);
 }
 
+//This sepereate threaded function is always listening to ensure the client can always recieve messages
 void * recieveHandler(void * unUsed){
 	
 	//We passed in a void * that is an int * so cast it and dereference it
@@ -145,7 +148,7 @@ void * recieveHandler(void * unUsed){
 			readAndRemoveUserName();
 		}
 
-		//Something weird happened..... shouldnt happen unless disconect 
+		//Something weird happened..... shouldnt happen unless server and client disconnect
 		else{
 			printf("Server sent uknown code: %u\n", code);
 			shutdownClient(0);
@@ -153,11 +156,12 @@ void * recieveHandler(void * unUsed){
 	}
 }
 
+//Handshake procedure for our server recieving the proper authentication
 void handShake(){
 	unsigned char confirmation_one_byte;
 	unsigned char confirmation_two_byte;
 	
-	//Make sure there is a timeout so the client doesn t wait for handshake forever
+	//Make sure there is a timeout so the client doesnt wait for handshake forever
 	if (setsockopt(socketFD, SOL_SOCKET, SO_RCVTIMEO, (char *)&timer, sizeof(timer)) < 0){
 	 	perror("setsockopt failed\n");
 	 	exit(1);
@@ -190,6 +194,7 @@ void handShake(){
 	}
 }
 
+//Read and add multiple usernames
 void readMultipleUsernames(uint16_t numberOfUsers){
 	
 	int i;
@@ -198,6 +203,7 @@ void readMultipleUsernames(uint16_t numberOfUsers){
 	}
 }
 
+//Read in and add a username to our linked list
 void readAndAddUserName(){
 		
 	unsigned char buff[BufferSize];
@@ -213,6 +219,7 @@ void readAndAddUserName(){
 	userAdded(buff, size);
 }
 
+//Read in and remove a username from link list
 void readAndRemoveUserName(){
 
 	unsigned char buff[BufferSize];
@@ -228,6 +235,7 @@ void readAndRemoveUserName(){
 	userRemoved(buff, size);
 }
 
+//Generic method that returns the length of a message based on null a new line terminates
 uint16_t lengthOfString(unsigned char* userName){
 	
 	int i;
@@ -240,6 +248,7 @@ uint16_t lengthOfString(unsigned char* userName){
 	return i;
 }
 
+//Send the username passed into the function to server
 void sendUsername(unsigned char* username){
 	//Put in the length at the start
 	uint16_t sizeUser = lengthOfString(username);
@@ -249,6 +258,7 @@ void sendUsername(unsigned char* username){
 	sendBytes(socketFD, username, sizeUser);
 }
 
+//Generic recieve that has safeguard if the message is sent in pieces
 void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes){
 
 	int numberToRead = numBytes;
@@ -267,6 +277,7 @@ void recievedBytes(int sock, unsigned char* buff, uint16_t numBytes){
 	}
 }
 
+//Generic send so if send can send in pieces if unsuccesful
 void sendBytes(int sock, unsigned char* buff, uint16_t numBytes){
 
 	int numberToWrite = numBytes;
@@ -280,12 +291,13 @@ void sendBytes(int sock, unsigned char* buff, uint16_t numBytes){
 			shutdownClient(0);			
 		}
 
-		// Increment the char pointer to current sunfilled spot 
+		// Increment the char pointer to current spot  we sent to
 		spotInBuffer += sentBytes;
 		numberToWrite -= sentBytes;
 	}
 }
 
+// Loop for chatting, mainly cover client interface functionality
 void chat(){
 
 	for(;;){
@@ -326,6 +338,7 @@ void chat(){
 	}
 }
 
+// Create and add a user of specific username and size and add it to link list
 void userAdded(char* username, int size){
 	
 	user * User = (user *)malloc(sizeof(user));
@@ -353,14 +366,14 @@ void userAdded(char* username, int size){
 		currentLink->next = link;
 	}
 
-	printf(" %s has enter the chat room\n", link->user->username);
+	printf(" %s has been added to chat room\n", link->user->username);
 
 	pthread_rwlock_unlock(&lock);
 }
 
+//Remove a username with a specific username from link list
 void userRemoved(char* userName, int size){
 
-	printf("Suppose to remove username %s\n", userName);
 	pthread_rwlock_wrlock(&lock);
 
 	userLink* priorLink = firstLink;
@@ -375,7 +388,7 @@ void userRemoved(char* userName, int size){
 		//Look for the username of the same name and remove it
 		if(strncmp(currentLink->user->username, userName, size) == 0){
 			userLink* removedLink = currentLink;
-			printf(" %s has left the chat room\n", removedLink->user->username);
+			printf(" %s has been removed from the chat room\n", removedLink->user->username);
 			
 			if(priorLink != currentLink){
 				
@@ -400,6 +413,7 @@ void userRemoved(char* userName, int size){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Print out all the usernames in link list to user
 void printUsernames(){
 	
 	pthread_rwlock_rdlock(&lock);
@@ -413,6 +427,7 @@ void printUsernames(){
 	pthread_rwlock_unlock(&lock);
 }
 
+//Send an message of length 0 to prevent timeout
 void sendKeepAliveMessage(){
 
 	uint16_t zeroCode = 0;
