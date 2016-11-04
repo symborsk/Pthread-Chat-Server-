@@ -24,7 +24,7 @@ entered/left the chat room."
 Printing out all current usernames: When you want to print out and view all the current usernames the client must type .usernames.
 This will then print out each username.
 
-Exitting the chat room: In order to ensure the client shut downs correctly the user must hit CTLR C in order to exit and terminate 
+Exiting the chat room: In order to ensure the client shut downs correctly the user must hit CTLR C in order to exit and terminate 
 client.
 
 ---------------------------------------------------------------------------------------------------------------------------
